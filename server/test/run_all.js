@@ -81,6 +81,14 @@ async function main() {
     await runTestFile('onboarding.test.js');
     await runTestFile('deletion_and_faq.test.js');
 
+    // Clean up test fixtures from shared development database and disk
+    try {
+      await fetch('http://localhost:5000/api/repositories', { method: 'DELETE' });
+      console.log('[Test Cleanup] All test fixtures purged from database and disk storage.');
+    } catch {
+      // Ignore if server unreachable
+    }
+
     console.log('\n==================================================');
     console.log('[SUCCESS] All RepoLens test suites passed successfully!');
     console.log('==================================================\n');

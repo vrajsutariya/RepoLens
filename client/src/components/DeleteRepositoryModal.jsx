@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { VscTrash, VscWarning, VscLoading } from 'react-icons/vsc';
 
 /**
- * Accessible confirmation modal for permanently deleting an ingested repository.
+ * Accessible confirmation modal for hard deleting an individual repository
+ * or all ingested repositories from disk directory, browser storage, and database.
  */
 export default function DeleteRepositoryModal({
   isOpen,
-  repository,
+  isAll = false,
+  repository = null,
+  repositoryCount = 0,
   isDeleting,
   onConfirm,
   onCancel,
@@ -26,7 +29,9 @@ export default function DeleteRepositoryModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isDeleting, onCancel]);
 
-  if (!isOpen || !repository) return null;
+  if (!isOpen || (!isAll && !repository)) return null;
+
+  const modalTitle = isAll ? 'Hard Delete All Repositories' : 'Hard Delete Repository';
 
   return (
     <AnimatePresence>
@@ -69,7 +74,7 @@ export default function DeleteRepositoryModal({
                   <VscTrash size={18} />
                 </div>
                 <h2 className="modal-title h6 fw-bold mb-0 text-white" id="delete-repo-modal-title">
-                  Delete Repository
+                  {modalTitle}
                 </h2>
               </div>
               <button
@@ -95,15 +100,39 @@ export default function DeleteRepositoryModal({
               >
                 <VscWarning size={18} className="flex-shrink-0 mt-1" style={{ color: '#ef4444' }} />
                 <div>
-                  Are you sure you want to delete <strong className="text-white fw-bold">{repository.name}</strong>?
-                  This will permanently remove this repository and its stored RepoLens analysis. This action cannot be undone.
+                  {isAll ? (
+                    <>
+                      Are you sure you want to permanently delete{' '}
+                      <strong className="text-white fw-bold">ALL {repositoryCount} repositories</strong>?
+                      This action cannot be undone.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to delete{' '}
+                      <strong className="text-white fw-bold">{repository?.name}</strong>?
+                      This action cannot be undone.
+                    </>
+                  )}
                 </div>
               </div>
 
-              <p className="text-repolens-secondary small mb-0" style={{ fontSize: '0.8rem', lineHeight: '1.5' }}>
-                All indexed files, extracted Abstract Syntax Tree (AST) symbols, API endpoints, dependency graphs,
-                and generated onboarding guides will be completely erased from disk and database storage.
-              </p>
+              <div
+                className="p-2 px-3 rounded mb-2"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid var(--color-border)',
+                  fontSize: '0.78rem',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: '1.5',
+                }}
+              >
+                <div className="fw-semibold text-white mb-1">Permanent Hard Delete includes:</div>
+                <ul className="mb-0 ps-3">
+                  <li><strong className="text-light">Filesystem Directory:</strong> Extracted code files in <code className="text-danger small">storage/repositories</code></li>
+                  <li><strong className="text-light">Database:</strong> MongoDB repository metadata, AST symbols, dependencies, and onboarding guides</li>
+                  <li><strong className="text-light">Local Storage:</strong> Browser cache, session state, and cached repository identifiers</li>
+                </ul>
+              </div>
             </div>
 
             {/* Modal Footer */}
@@ -131,12 +160,12 @@ export default function DeleteRepositoryModal({
                 {isDeleting ? (
                   <>
                     <VscLoading className="spin" size={16} />
-                    <span>Deleting Repository...</span>
+                    <span>{isAll ? 'Deleting All Repositories...' : 'Deleting Repository...'}</span>
                   </>
                 ) : (
                   <>
                     <VscTrash size={16} />
-                    <span>Delete Repository</span>
+                    <span>{isAll ? 'Hard Delete All' : 'Hard Delete Repository'}</span>
                   </>
                 )}
               </button>

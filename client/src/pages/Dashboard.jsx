@@ -12,6 +12,8 @@ import {
   uploadRepositoryZip,
   importGitRepository,
   deleteRepository,
+  deleteAllRepositories,
+  clearBrowserRepoStorage,
 } from '../services/api';
 
 export default function Dashboard({ backendStatus }) {
@@ -31,6 +33,8 @@ export default function Dashboard({ backendStatus }) {
   // Deletion modal state
   const [repoToDelete, setRepoToDelete] = useState(null);
   const [isDeletingRepo, setIsDeletingRepo] = useState(false);
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Load a specific repository by ID
   const handleSelectRepository = useCallback(async (repoId) => {
@@ -184,16 +188,14 @@ export default function Dashboard({ backendStatus }) {
     setSearchParams({}, { replace: true });
   };
 
-  // Permanently delete repository workflow
+  // Permanently delete single repository workflow (Hard Delete)
   const handleConfirmDelete = async () => {
     if (!repoToDelete || isDeletingRepo) return;
     setIsDeletingRepo(true);
     try {
       await deleteRepository(repoToDelete._id);
-      toast.success(`Repository "${repoToDelete.name}" deleted successfully.`);
-
-      // Update repositories list in state
-      setRepositories((prev) => prev.filter((r) => r._id !== repoToDelete._id));
+      clearBrowserRepoStorage(repoToDelete._id);
+      toast.success(`Repository "${repoToDelete.name}" permanently deleted.`);
 
       // If the currently viewed repository was deleted, navigate back to import view
       if (activeRepoId === repoToDelete._id) {
@@ -202,12 +204,36 @@ export default function Dashboard({ backendStatus }) {
         setSearchParams({}, { replace: true });
       }
 
+      // Re-fetch repositories directly from backend to ensure UI stays perfectly in sync with DB and disk
+      await refreshRepositories();
       setRepoToDelete(null);
     } catch (err) {
       const msg = err?.error?.message || err?.message || 'Failed to delete repository.';
       toast.error(msg);
     } finally {
       setIsDeletingRepo(false);
+    }
+  };
+
+  // Permanently delete ALL repositories workflow (Hard Delete All)
+  const handleConfirmDeleteAll = async () => {
+    if (isDeletingAll) return;
+    setIsDeletingAll(true);
+    try {
+      await deleteAllRepositories();
+      clearBrowserRepoStorage(null);
+      toast.success('All repositories permanently deleted from disk and database.');
+
+      setActiveRepoId(null);
+      setActiveRepository(null);
+      setRepositories([]);
+      setSearchParams({}, { replace: true });
+      setIsDeleteAllOpen(false);
+    } catch (err) {
+      const msg = err?.error?.message || err?.message || 'Failed to delete all repositories.';
+      toast.error(msg);
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -220,6 +246,7 @@ export default function Dashboard({ backendStatus }) {
         onSelectRepo={handleSelectRepository}
         onNewIngestion={handleBackToImport}
         onRequestDelete={(repo) => setRepoToDelete(repo)}
+        onRequestDeleteAll={() => setIsDeleteAllOpen(true)}
         backendStatus={backendStatus}
       />
 
@@ -256,15 +283,30 @@ export default function Dashboard({ backendStatus }) {
         )}
       </main>
 
-      {/* Accessible Repository Deletion Confirmation Modal */}
+      {/* Accessible Repository Deletion Confirmation Modal (Single Repo) */}
       <DeleteRepositoryModal
         isOpen={Boolean(repoToDelete)}
+        isAll={false}
         repository={repoToDelete}
         isDeleting={isDeletingRepo}
         onConfirm={handleConfirmDelete}
         onCancel={() => {
           if (!isDeletingRepo) {
             setRepoToDelete(null);
+          }
+        }}
+      />
+
+      {/* Accessible Bulk Repository Deletion Confirmation Modal (All Repos) */}
+      <DeleteRepositoryModal
+        isOpen={isDeleteAllOpen}
+        isAll={true}
+        repositoryCount={repositories.length}
+        isDeleting={isDeletingAll}
+        onConfirm={handleConfirmDeleteAll}
+        onCancel={() => {
+          if (!isDeletingAll) {
+            setIsDeleteAllOpen(false);
           }
         }}
       />

@@ -7,7 +7,13 @@ import { analyzeRepository } from '../services/code-intelligence/repositoryAnaly
 import ContextBuilder from '../services/code-intelligence/contextBuilder.js';
 import { processZipUpload } from '../services/zipIngestion.service.js';
 import { processGitImport } from '../services/gitIngestion.service.js';
-import { getRepoExtractedDir, getRepoStorageDir, cleanupDirectory } from '../config/storage.js';
+import {
+  getRepoExtractedDir,
+  getRepoStorageDir,
+  cleanupDirectory,
+  cleanupAllRepositoriesStorage,
+  cleanupOrphanedStorage,
+} from '../config/storage.js';
 import { assertSafePath, isBinaryFile } from '../utils/pathSafety.js';
 import { detectLanguage } from '../utils/languageDetector.js';
 import { getDBStatus } from '../config/db.js';
@@ -97,18 +103,25 @@ export const importGitRepository = async (req, res, next) => {
 /**
  * GET /api/repositories
  * Lists recent repositories without bulky file lists.
+ * Supports configurable limit via query parameter (default: 100).
  */
 export const getRepositories = async (req, res, next) => {
   try {
     assertDatabaseConnected();
 
-    const repositories = await Repository.find({}, '-fileList -fileTree')
-      .sort({ createdAt: -1 })
-      .limit(20);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+
+    const [repositories, totalCount] = await Promise.all([
+      Repository.find({}, '-fileList -fileTree')
+        .sort({ createdAt: -1 })
+        .limit(limit),
+      Repository.countDocuments(),
+    ]);
 
     res.status(200).json({
       success: true,
       data: repositories,
+      total: totalCount,
     });
   } catch (error) {
     next(error);
@@ -962,19 +975,65 @@ export const deleteRepository = async (req, res, next) => {
     await Repository.findByIdAndDelete(id);
 
     // 3. Safely clean up repository storage directory on disk
+    let directoryDeleted = false;
     if (repository.storageKey && typeof repository.storageKey === 'string') {
       const sanitizedKey = repository.storageKey.replace(/[^a-zA-Z0-9_-]/g, '');
       if (sanitizedKey.length > 0) {
         const repoStorageDir = getRepoStorageDir(sanitizedKey);
-        await cleanupDirectory(repoStorageDir);
+        directoryDeleted = await cleanupDirectory(repoStorageDir);
       }
     }
 
     res.status(200).json({
       success: true,
       data: {
-        message: `Repository "${repository.name}" and all associated analysis data were deleted successfully.`,
+        message: `Repository "${repository.name}" and all associated analysis data were permanently deleted.`,
         id,
+        directoryDeleted,
+        deletedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/repositories
+ * Permanently deletes ALL repositories, associated analysis results,
+ * onboarding guides, and purges all extracted repository directories from disk.
+ */
+export const deleteAllRepositories = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+
+    // 1. Count records prior to deletion for logging and reporting
+    const [repoCount, analysisCount, guideCount] = await Promise.all([
+      Repository.countDocuments(),
+      AnalysisResult.countDocuments(),
+      OnboardingGuide.countDocuments(),
+    ]);
+
+    // 2. Purge all records across all database models
+    await Promise.all([
+      Repository.deleteMany({}),
+      AnalysisResult.deleteMany({}),
+      OnboardingGuide.deleteMany({}),
+    ]);
+
+    // 3. Purge all extracted directories and uploaded archives from disk
+    const diskDirsCleaned = await cleanupAllRepositoriesStorage();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: `All repositories (${repoCount}) and associated data were permanently deleted from database and disk.`,
+        deletedCounts: {
+          repositories: repoCount,
+          analysisResults: analysisCount,
+          onboardingGuides: guideCount,
+          storageDirectories: diskDirsCleaned,
+        },
         deletedAt: new Date().toISOString(),
       },
     });

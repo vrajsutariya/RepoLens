@@ -5,6 +5,10 @@ import geminiService from '../gemini.service.js';
 import { retrieveCodeEvidence } from './qaRetrieval.service.js';
 import { validateQAResult } from './qaValidator.js';
 import { matchFaqQuestion } from './faqKnowledgeBase.js';
+import {
+  matchRepositoryFactQuestion,
+  answerRepositoryFactQuestion,
+} from './repositoryFactAnswer.js';
 
 /**
  * Builds a standardized FAQ fallback response.
@@ -139,6 +143,17 @@ export const answerCodebaseQuestion = async (repositoryId, question) => {
   }
 
   const extractedDir = getRepoExtractedDir(repository.storageKey);
+
+  // 2b. Check if question asks for core extracted repository facts (file count, tech stack, starting point, etc.)
+  const factMatch = matchRepositoryFactQuestion(question);
+  if (factMatch.matched) {
+    return await answerRepositoryFactQuestion(
+      repository,
+      analysis,
+      factMatch.type,
+      extractedDir
+    );
+  }
 
   // 3. Fallback Priority 1 & 2: If Gemini is not configured, check for predefined FAQ answers
   if (!geminiService.isConfigured()) {

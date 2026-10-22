@@ -57,6 +57,54 @@ export const deleteRepository = async (id) => {
   return await api.delete(`/repositories/${id}`);
 };
 
+export const deleteAllRepositories = async () => {
+  return await api.delete('/repositories');
+};
+
+/**
+ * Purges repository-related items from browser localStorage and sessionStorage.
+ * @param {string|null} repoId - Specific repository ID, or null to purge all.
+ */
+export const clearBrowserRepoStorage = (repoId = null) => {
+  try {
+    const storages = [window.localStorage, window.sessionStorage];
+    for (const storage of storages) {
+      if (!storage) continue;
+
+      if (!repoId) {
+        const keysToRemove = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (
+            key &&
+            (key.startsWith('repolens') ||
+              key.includes('repo') ||
+              key.includes('repository'))
+          ) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const k of keysToRemove) {
+          storage.removeItem(k);
+        }
+      } else {
+        const keysToRemove = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key && (key.includes(repoId) || key === 'repolens_active_repo')) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const k of keysToRemove) {
+          storage.removeItem(k);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Storage] Could not clear browser storage:', err);
+  }
+};
+
 export const getRepositoryTree = async (id) => {
   return await api.get(`/repositories/${id}/tree`);
 };

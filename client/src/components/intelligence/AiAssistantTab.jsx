@@ -80,9 +80,11 @@ export default function AiAssistantTab({
         // Fallback default suggestions
         if (isCurrent) {
           setSuggestedQuestions([
-            'Where is authentication handled?',
-            'What happens when an API endpoint is requested?',
-            'Where does this application connect to MongoDB?',
+            'How many files and what is the project structure of this repository?',
+            'Which major technologies and frameworks are used in this codebase?',
+            'What is the starting point or main entry point of this project?',
+            'What package dependencies does this project rely on?',
+            'What API routes or endpoints are defined in this repository?',
           ]);
         }
       } finally {
@@ -299,84 +301,162 @@ export default function AiAssistantTab({
               Answers are grounded strictly in indexed AST symbols, route handlers, database schemas, and actual source code excerpts.
             </p>
 
-            {/* Suggested Question Chips */}
-            {(suggestedQuestions.length > 0 || loadingSuggestions) && (
+            {/* Quick Repository Evidence-Grounded Questions */}
+            <div className="w-100 mb-3" style={{ maxWidth: '640px' }}>
+              <div className="text-start mb-2">
+                <span className="text-white small fw-semibold d-flex align-items-center gap-1">
+                  <VscLightbulb size={14} style={{ color: 'var(--color-primary)' }} />
+                  <span>Quick Repository Questions (Extracted Evidence):</span>
+                </span>
+                <span className="text-repolens-secondary small d-block" style={{ fontSize: '0.725rem' }}>
+                  Instant answers derived from static file indexing, AST symbols, and manifest metadata.
+                </span>
+              </div>
+
+              <div className="d-flex flex-column gap-2">
+                {[
+                  {
+                    q: 'How many files and what is the project structure of this repository?',
+                    label: 'How many files & project structure?',
+                    tag: 'Overview',
+                  },
+                  {
+                    q: 'Which major technologies and frameworks are used in this codebase?',
+                    label: 'Which major technologies & frameworks are used?',
+                    tag: 'Tech Stack',
+                  },
+                  {
+                    q: 'What is the starting point or main entry point of this project?',
+                    label: 'What is the starting point / main entry point?',
+                    tag: 'Entry Point',
+                  },
+                  {
+                    q: 'What package dependencies does this project rely on?',
+                    label: 'What package dependencies are declared?',
+                    tag: 'Dependencies',
+                  },
+                  {
+                    q: 'What API routes or endpoints are defined in this repository?',
+                    label: 'What API routes & endpoints are defined?',
+                    tag: 'Endpoints',
+                  },
+                ].map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSubmitQuestion(item.q)}
+                    className="btn btn-sm text-start py-2 px-3 rounded border border-repolens d-flex align-items-center justify-content-between gap-2"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text-primary)',
+                      fontSize: '0.82rem',
+                      transition: 'border-color var(--transition-fast), background-color var(--transition-fast)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-primary)';
+                      e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                      e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                    }}
+                  >
+                    <div className="d-flex align-items-center gap-2 text-truncate">
+                      <VscQuestion size={15} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                      <span className="text-truncate fw-medium">{item.label}</span>
+                    </div>
+                    <span
+                      className="badge flex-shrink-0"
+                      style={{
+                        backgroundColor: 'rgba(240, 80, 51, 0.12)',
+                        color: 'var(--color-primary)',
+                        fontSize: '0.65rem',
+                      }}
+                    >
+                      {item.tag}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Additional Suggested Architectural Questions */}
+            {suggestedQuestions.filter((sq) => !sq.includes('How many files') && !sq.includes('Which major technologies')).length > 0 && (
               <div className="w-100" style={{ maxWidth: '640px' }}>
                 <div className="d-flex align-items-center justify-content-between mb-2">
                   <span className="text-repolens-secondary small fw-medium d-block text-start">
-                    Suggested questions for this codebase:
+                    Additional architectural prompts:
                   </span>
                   {loadingSuggestions && (
                     <span className="text-repolens-secondary small d-flex align-items-center gap-1" style={{ fontSize: '0.7rem' }}>
                       <VscLoading className="spin" size={12} style={{ color: 'var(--color-primary)' }} />
-                      <span>Generating suggestions...</span>
+                      <span>Loading...</span>
                     </span>
                   )}
                 </div>
                 <div className="d-flex flex-column gap-2">
-                  {suggestedQuestions.map((sq, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSubmitQuestion(sq)}
-                      className="btn btn-sm text-start py-2 px-3 rounded border border-repolens d-flex align-items-center justify-content-between gap-2"
-                      style={{
-                        backgroundColor: 'var(--color-surface)',
-                        color: 'var(--color-text-primary)',
-                        fontSize: '0.82rem',
-                        transition: 'border-color var(--transition-fast), background-color var(--transition-fast)',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--color-primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--color-border)';
-                        e.currentTarget.style.backgroundColor = 'var(--color-surface)';
-                      }}
-                    >
-                      <div className="d-flex align-items-center gap-2 text-truncate">
-                        <VscQuestion size={15} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-                        <span className="text-truncate">{sq}</span>
-                      </div>
-                      <span className="text-repolens-secondary small flex-shrink-0">&rarr;</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Offline FAQ Quick Chips */}
-                <div className="mt-3 pt-3 border-top border-repolens text-start">
-                  <span className="text-repolens-secondary small fw-medium d-block mb-2" style={{ fontSize: '0.75rem' }}>
-                    Common platform questions (Available offline):
-                  </span>
-                  <div className="d-flex flex-wrap gap-2">
-                    {[
-                      'What is RepoLens?',
-                      'How does repository analysis work?',
-                      "Does RepoLens execute the uploaded repository's code?",
-                      'How do I explore file dependencies?',
-                      'How do I delete a repository?',
-                    ].map((faqQ, idx) => (
+                  {suggestedQuestions
+                    .filter((sq) => !sq.includes('How many files') && !sq.includes('Which major technologies'))
+                    .map((sq, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => handleSubmitQuestion(faqQ)}
-                        className="btn btn-sm text-start py-1 px-2 rounded border border-repolens d-flex align-items-center gap-1"
+                        onClick={() => handleSubmitQuestion(sq)}
+                        className="btn btn-sm text-start py-2 px-3 rounded border border-repolens d-flex align-items-center justify-content-between gap-2"
                         style={{
-                          backgroundColor: 'rgba(23, 23, 25, 0.7)',
+                          backgroundColor: 'var(--color-surface)',
                           color: 'var(--color-text-secondary)',
-                          fontSize: '0.75rem',
-                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.8rem',
+                          transition: 'all var(--transition-fast)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--color-primary)';
+                          e.currentTarget.style.color = '#ffffff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--color-border)';
+                          e.currentTarget.style.color = 'var(--color-text-secondary)';
                         }}
                       >
-                        <VscQuestion size={13} style={{ color: '#f59e0b' }} />
-                        <span>{faqQ}</span>
+                        <span className="text-truncate">{sq}</span>
+                        <span className="text-repolens-secondary small flex-shrink-0">&rarr;</span>
                       </button>
                     ))}
-                  </div>
                 </div>
               </div>
             )}
+
+            {/* Offline Platform FAQ Chips */}
+            <div className="w-100 mt-3 pt-3 border-top border-repolens text-start" style={{ maxWidth: '640px' }}>
+              <span className="text-repolens-secondary small fw-medium d-block mb-2" style={{ fontSize: '0.75rem' }}>
+                RepoLens platform guide & FAQs (Offline ready):
+              </span>
+              <div className="d-flex flex-wrap gap-2">
+                {[
+                  'What is RepoLens?',
+                  'How does repository analysis work?',
+                  "Does RepoLens execute the uploaded repository's code?",
+                  'How do I explore file dependencies?',
+                  'How do I delete a repository?',
+                ].map((faqQ, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSubmitQuestion(faqQ)}
+                    className="btn btn-sm text-start py-1 px-2 rounded border border-repolens d-flex align-items-center gap-1"
+                    style={{
+                      backgroundColor: 'rgba(23, 23, 25, 0.7)',
+                      color: 'var(--color-text-secondary)',
+                      fontSize: '0.725rem',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    <VscQuestion size={13} style={{ color: '#f59e0b' }} />
+                    <span>{faqQ}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

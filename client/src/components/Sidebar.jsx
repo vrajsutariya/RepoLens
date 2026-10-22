@@ -18,6 +18,7 @@ export default function Sidebar({
   onSelectRepo,
   onNewIngestion,
   onRequestDelete,
+  onRequestDeleteAll,
   backendStatus,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -53,15 +54,36 @@ export default function Sidebar({
             Repositories ({repositories.length})
           </span>
           {repositories.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="btn btn-sm text-repolens-secondary p-0 border-0"
-              style={{ fontSize: '0.75rem' }}
-              title={isCollapsed ? 'Expand list' : 'Collapse list'}
-            >
-              {isCollapsed ? <VscChevronDown size={14} /> : <VscChevronUp size={14} />}
-            </button>
+            <div className="d-flex align-items-center gap-1">
+              {onRequestDeleteAll && (
+                <button
+                  type="button"
+                  onClick={onRequestDeleteAll}
+                  className="btn btn-sm text-danger p-0 border-0 d-flex align-items-center me-1"
+                  style={{
+                    fontSize: '0.725rem',
+                    opacity: 0.8,
+                    transition: 'opacity var(--transition-fast)',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+                  title="Delete all repositories from database, directory, and local storage"
+                  aria-label="Delete all repositories"
+                >
+                  <VscTrash size={13} className="me-1" />
+                  <span>Delete All</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="btn btn-sm text-repolens-secondary p-0 border-0"
+                style={{ fontSize: '0.75rem' }}
+                title={isCollapsed ? 'Expand list' : 'Collapse list'}
+              >
+                {isCollapsed ? <VscChevronDown size={14} /> : <VscChevronUp size={14} />}
+              </button>
+            </div>
           )}
         </div>
 

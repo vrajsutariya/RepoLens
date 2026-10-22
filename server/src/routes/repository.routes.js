@@ -26,6 +26,7 @@ import {
   generateRepositoryOnboardingGuide,
   regenerateRepositoryOnboardingGuide,
   deleteRepository,
+  deleteAllRepositories,
   getRepositoryFaqEntries,
 } from '../controllers/repository.controller.js';
 
@@ -105,9 +106,11 @@ router.post('/upload', handleMulterUpload, uploadRepositoryZip);
 router.post('/import', importGitRepository);
 
 /**
- * Repository Inspection Endpoints
+ * Repository Inspection & Lifecycle Endpoints
  */
 router.get('/', getRepositories);
+router.delete('/', deleteAllRepositories);
+router.delete('/all', deleteAllRepositories);
 router.get('/faq', getRepositoryFaqEntries);
 router.get('/:id', getRepositoryById);
 router.delete('/:id', deleteRepository);

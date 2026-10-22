@@ -143,9 +143,14 @@ export default function OnboardingDashboard({
     return (
       <div className="p-3">
         <OnboardingEmptyState
+          repository={repository}
+          analysis={analysis}
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
           error={error}
+          onNavigateToFile={onNavigateToFile}
+          onNavigateToGraph={onNavigateToGraph}
+          onAskAi={onAskAi}
         />
       </div>
     );

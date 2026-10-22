@@ -330,6 +330,42 @@ async function runDeletionAndFaqTests() {
       'Delete 10: Subsequent GET /api/repositories/:id confirms repository no longer accessible'
     );
 
+    // =========================================================================
+    // Part 5: Delete All Repositories (Hard Delete All)
+    // =========================================================================
+    console.log('\n[SECTION 5] Delete All Repositories & Bulk Storage Cleanup');
+
+    // Ingest another repo for testing bulk delete
+    const bulkZip = new AdmZip();
+    bulkZip.addFile('test.js', Buffer.from('console.log("bulk delete");'));
+    const bulkBuffer = bulkZip.toBuffer();
+    const bulkForm = new FormData();
+    bulkForm.append('file', new Blob([bulkBuffer], { type: 'application/zip' }), 'bulk.zip');
+    bulkForm.append('name', 'Bulk Delete Test Repo');
+
+    const bulkUploadRes = await fetch(`${API_BASE}/repositories/upload`, {
+      method: 'POST',
+      body: bulkForm,
+    });
+    const bulkUploadData = await bulkUploadRes.json();
+    assert(bulkUploadData.success, 'Bulk Delete 1: Ingested repository for bulk delete test');
+
+    const deleteAllRes = await fetch(`${API_BASE}/repositories`, {
+      method: 'DELETE',
+    });
+    const deleteAllData = await deleteAllRes.json();
+    assert(
+      deleteAllRes.status === 200 && deleteAllData.success && deleteAllData.data.deletedCounts.repositories >= 1,
+      'Bulk Delete 2: DELETE /api/repositories returns 200 and reports deleted count'
+    );
+
+    const postAllListRes = await fetch(`${API_BASE}/repositories`);
+    const postAllListData = await postAllListRes.json();
+    assert(
+      postAllListData.success && postAllListData.data.length === 0,
+      'Bulk Delete 3: GET /api/repositories confirms 0 repositories remain after bulk hard delete'
+    );
+
     console.log('\n========================================');
     console.log(`Test Results: ${passed} Passed, ${failed} Failed`);
     console.log('========================================\n');

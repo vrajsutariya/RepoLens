@@ -8,20 +8,25 @@ import Repository from '../../models/Repository.js';
  * @returns {Promise<Array<string>>} List of suggested question strings
  */
 export const generateSuggestedQuestions = async (repositoryId) => {
-  const repository = await Repository.findById(repositoryId, 'name fileList');
+  const repository = await Repository.findById(repositoryId, 'name fileList totalFiles detectedLanguages');
   if (!repository) return [];
 
   const analysis = await AnalysisResult.findOne({ repositoryId });
   if (!analysis || analysis.status !== 'completed') {
     return [
-      'What is the structure of this repository?',
-      'Which files should I inspect first?',
+      'How many files and what is the project structure of this repository?',
+      'Which major technologies and frameworks are used in this codebase?',
+      'What is the starting point or main entry point of this project?',
     ];
   }
 
-  const suggestions = [];
+  const suggestions = [
+    'How many files and what is the project structure of this repository?',
+    'Which major technologies and frameworks are used in this codebase?',
+    'What is the starting point or main entry point of this project?',
+  ];
 
-  // 1. Entry Point Suggestions
+  // 1. Entry Point Specific Suggestion
   if (analysis.entryPoints && analysis.entryPoints.length > 0) {
     const mainEntry = analysis.entryPoints.find((e) => e.type === 'application-server') || analysis.entryPoints[0];
     suggestions.push(`How does the application boot and initialize from \`${mainEntry.path}\`?`);
@@ -29,7 +34,6 @@ export const generateSuggestedQuestions = async (repositoryId) => {
 
   // 2. Discovered API Endpoints
   if (analysis.apiEndpoints && analysis.apiEndpoints.length > 0) {
-    // Pick an interesting non-health endpoint if available, else first endpoint
     const businessEndpoint =
       analysis.apiEndpoints.find((ep) => !ep.path.includes('health') && ep.path !== '/') ||
       analysis.apiEndpoints[0];
@@ -37,6 +41,8 @@ export const generateSuggestedQuestions = async (repositoryId) => {
     suggestions.push(
       `What happens when \`${businessEndpoint.method} ${businessEndpoint.path}\` is requested?`
     );
+  } else if (analysis.dependencies?.declared?.length > 0) {
+    suggestions.push('What package dependencies does this project rely on?');
   }
 
   // 3. Discovered Database Models & Queries
@@ -68,19 +74,12 @@ export const generateSuggestedQuestions = async (repositoryId) => {
     }) ||
     (analysis.entryPoints || []).some((e) => e.type === 'configuration');
 
-  if (hasEnvOrConfig) {
+  if (hasEnvOrConfig && suggestions.length < 6) {
     suggestions.push('What environment variables and configurations are required to run this project?');
   }
 
-  // 6. Component or Data Flow Check
-  if (analysis.frameworks?.some((f) => f.name.toLowerCase() === 'react')) {
-    suggestions.push('How does frontend data flow between components and the API?');
-  } else if (analysis.dependencies?.internalImports?.length > 0) {
-    suggestions.push('How are module imports and dependencies organized across the codebase?');
-  }
-
-  // Return at most 5 distinct questions
-  return Array.from(new Set(suggestions)).slice(0, 5);
+  // Return at most 6 distinct questions
+  return Array.from(new Set(suggestions)).slice(0, 6);
 };
 
 export default {
