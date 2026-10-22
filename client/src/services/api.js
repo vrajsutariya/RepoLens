@@ -109,4 +109,28 @@ export const getRepositorySuggestedQuestions = async (id) => {
   return await api.get(`/repositories/${id}/suggested-questions`);
 };
 
+/**
+ * Architecture & Execution Flow Graphs (Phase 5)
+ */
+export const getRepositoryGraph = async (id, type = 'modules') => {
+  return await api.get(`/repositories/${id}/graph`, {
+    params: { type },
+  });
+};
+
+/**
+ * Repository Onboarding & Setup Assistant (Phase 6)
+ */
+export const getRepositoryOnboarding = async (id) => {
+  return await api.get(`/repositories/${id}/onboarding`);
+};
+
+export const generateRepositoryOnboarding = async (id) => {
+  return await api.post(`/repositories/${id}/onboarding/generate`);
+};
+
+export const regenerateRepositoryOnboarding = async (id) => {
+  return await api.post(`/repositories/${id}/onboarding/regenerate`);
+};
+
 export default api;

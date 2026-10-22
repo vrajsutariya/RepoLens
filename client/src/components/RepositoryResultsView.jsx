@@ -13,6 +13,8 @@ import {
   VscGitMerge,
   VscHubot,
   VscSparkle,
+  VscGraph,
+  VscBook,
 } from 'react-icons/vsc';
 import FileExplorer from './FileExplorer';
 import FileViewer from './FileViewer';
@@ -23,6 +25,8 @@ import EndpointsTab from './intelligence/EndpointsTab';
 import DatabaseTab from './intelligence/DatabaseTab';
 import AiContextTab from './intelligence/AiContextTab';
 import AiAssistantTab from './intelligence/AiAssistantTab';
+import GraphWorkspace from './visualization/GraphWorkspace';
+import OnboardingDashboard from './onboarding/OnboardingDashboard';
 import {
   getRepositoryFileContent,
   getRepositoryAnalysis,
@@ -56,6 +60,7 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState(null);
   const [highlightRange, setHighlightRange] = useState(null);
+  const [aiQuestionPrompt, setAiQuestionPrompt] = useState(null);
 
   // 1. Fetch analysis data on mount
   useEffect(() => {
@@ -141,6 +146,17 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
     setActiveTab('files');
   };
 
+  // Open AI Assistant with a contextual component question
+  const handleAskAiAboutComponent = (question) => {
+    setAiQuestionPrompt(question);
+    setActiveTab('assistant');
+  };
+
+  // Open Architecture Graph with an optional recommended type
+  const handleNavigateToGraph = (type = 'modules') => {
+    setActiveTab('graphs');
+  };
+
   const formatTotalSize = (bytes) => {
     if (!bytes) return '0 KB';
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -149,7 +165,9 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <VscLayers size={15} /> },
-    { id: 'assistant', label: 'AI Assistant', icon: <VscHubot size={15} />, highlight: true },
+    { id: 'onboarding', label: 'Onboarding Guide', icon: <VscBook size={15} />, highlight: true },
+    { id: 'graphs', label: 'Architecture Graphs', icon: <VscGraph size={15} /> },
+    { id: 'assistant', label: 'AI Assistant', icon: <VscHubot size={15} /> },
     { id: 'files', label: 'Files', icon: <VscFiles size={15} />, count: repository?.totalFiles },
     { id: 'symbols', label: 'Symbols', icon: <VscSymbolMethod size={15} />, count: analysis?.metrics?.symbolsCount },
     { id: 'dependencies', label: 'Dependencies', icon: <VscGitMerge size={15} />, count: analysis?.metrics?.relationshipsCount },
@@ -312,6 +330,45 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
                 onRerunAnalysis={handleRerunAnalysis}
                 isAnalyzing={isAnalyzing}
                 onAskAi={() => setActiveTab('assistant')}
+                onOpenGraphs={() => setActiveTab('graphs')}
+                onOpenOnboarding={() => setActiveTab('onboarding')}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'onboarding' && (
+            <motion.div
+              key="onboarding-tab"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="h-100 w-100 overflow-hidden"
+            >
+              <OnboardingDashboard
+                repository={repository}
+                analysis={analysis}
+                onNavigateToFile={handleNavigateToFile}
+                onNavigateToGraph={handleNavigateToGraph}
+                onAskAi={handleAskAiAboutComponent}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'graphs' && (
+            <motion.div
+              key="graphs-tab"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="h-100 w-100"
+            >
+              <GraphWorkspace
+                repositoryId={repository._id}
+                onNavigateToFile={handleNavigateToFile}
+                onAskAiAboutComponent={handleAskAiAboutComponent}
+                analysisStatus={analysis?.status}
               />
             </motion.div>
           )}
@@ -330,6 +387,8 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
                 repositoryName={repository.name}
                 analysisStatus={analysis?.status}
                 onNavigateToFile={handleNavigateToFile}
+                initialQuestion={aiQuestionPrompt}
+                onClearInitialQuestion={() => setAiQuestionPrompt(null)}
               />
             </motion.div>
           )}

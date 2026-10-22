@@ -21,6 +21,10 @@ import {
   getRepositoryAiContext,
   askRepositoryQuestion,
   getRepositorySuggestedQuestions,
+  getRepositoryGraph,
+  getRepositoryOnboardingGuide,
+  generateRepositoryOnboardingGuide,
+  regenerateRepositoryOnboardingGuide,
 } from '../controllers/repository.controller.js';
 
 const router = Router();
@@ -142,5 +146,17 @@ const askRateLimiter = rateLimit({
  */
 router.post('/:id/ask', askRateLimiter, askRepositoryQuestion);
 router.get('/:id/suggested-questions', getRepositorySuggestedQuestions);
+
+/**
+ * Architecture & Execution Flow Visualization Endpoints (Phase 5)
+ */
+router.get('/:id/graph', getRepositoryGraph);
+
+/**
+ * Repository Onboarding & Setup Assistant Endpoints (Phase 6)
+ */
+router.get('/:id/onboarding', getRepositoryOnboardingGuide);
+router.post('/:id/onboarding/generate', generateRepositoryOnboardingGuide);
+router.post('/:id/onboarding/regenerate', regenerateRepositoryOnboardingGuide);
 
 export default router;

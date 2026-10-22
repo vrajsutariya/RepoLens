@@ -12,6 +12,11 @@ import { detectLanguage } from '../utils/languageDetector.js';
 import { getDBStatus } from '../config/db.js';
 import { answerCodebaseQuestion } from '../services/code-intelligence/qaService.js';
 import { generateSuggestedQuestions } from '../services/code-intelligence/suggestedQuestions.service.js';
+import { generateRepositoryGraph } from '../services/code-intelligence/graphBuilder.js';
+import {
+  generateOnboardingGuide,
+  getOnboardingGuide,
+} from '../services/code-intelligence/onboardingService.js';
 
 const MAX_DISPLAY_FILE_SIZE_BYTES = 500 * 1024; // 500KB text view limit
 
@@ -695,6 +700,207 @@ export const getRepositorySuggestedQuestions = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: questions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/repositories/:id/graph?type=modules|api-flow|call-graph|database
+ * Generates interactive architecture and execution flow graphs from repository intelligence.
+ */
+export const getRepositoryGraph = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+
+    const { id } = req.params;
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid repository ID format: "${id}".`,
+          status: 400,
+        },
+      });
+    }
+
+    const repository = await Repository.findById(id, 'name fileList storageKey');
+    if (!repository) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: `Repository with ID "${id}" not found.`,
+          status: 404,
+        },
+      });
+    }
+
+    const analysis = await AnalysisResult.findOne({ repositoryId: id });
+    if (!analysis || analysis.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Repository code intelligence analysis is incomplete or pending. Please analyze repository first.',
+          status: 400,
+          code: 'ANALYSIS_NOT_READY',
+        },
+      });
+    }
+
+    const { type = 'modules' } = req.query;
+    const allowedTypes = new Set(['modules', 'api-flow', 'call-graph', 'database']);
+    if (type && !allowedTypes.has(type.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid graph type "${type}". Allowed types: modules, api-flow, call-graph, database.`,
+          status: 400,
+        },
+      });
+    }
+
+    const graph = generateRepositoryGraph(repository, analysis, type);
+
+    res.status(200).json({
+      success: true,
+      data: graph,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/repositories/:id/onboarding
+ * Retrieves the current onboarding guide for a repository if available.
+ */
+export const getRepositoryOnboardingGuide = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+    const { id } = req.params;
+
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid repository ID format "${id}". Must be a 24-character hexadecimal string.`,
+          status: 400,
+        },
+      });
+    }
+
+    const result = await getOnboardingGuide(id);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/repositories/:id/onboarding/generate
+ * Generates an AI-powered onboarding and setup guide for an imported repository.
+ */
+export const generateRepositoryOnboardingGuide = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+    const { id } = req.params;
+
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid repository ID format "${id}". Must be a 24-character hexadecimal string.`,
+          status: 400,
+        },
+      });
+    }
+
+    const repository = await Repository.findById(id, 'name storageKey');
+    if (!repository) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: `Repository with ID "${id}" not found.`,
+          status: 404,
+        },
+      });
+    }
+
+    const analysis = await AnalysisResult.findOne({ repositoryId: id });
+    if (!analysis || analysis.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Repository code intelligence analysis is incomplete or pending. Please analyze repository first.',
+          status: 400,
+          code: 'ANALYSIS_NOT_READY',
+        },
+      });
+    }
+
+    const guide = await generateOnboardingGuide(id, { forceRegenerate: false });
+
+    res.status(200).json({
+      success: true,
+      data: guide,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/repositories/:id/onboarding/regenerate
+ * Forces regeneration of the onboarding guide (bypassing cache).
+ */
+export const regenerateRepositoryOnboardingGuide = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+    const { id } = req.params;
+
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid repository ID format "${id}". Must be a 24-character hexadecimal string.`,
+          status: 400,
+        },
+      });
+    }
+
+    const repository = await Repository.findById(id, 'name storageKey');
+    if (!repository) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: `Repository with ID "${id}" not found.`,
+          status: 404,
+        },
+      });
+    }
+
+    const analysis = await AnalysisResult.findOne({ repositoryId: id });
+    if (!analysis || analysis.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Repository code intelligence analysis is incomplete or pending. Please analyze repository first.',
+          status: 400,
+          code: 'ANALYSIS_NOT_READY',
+        },
+      });
+    }
+
+    const guide = await generateOnboardingGuide(id, { forceRegenerate: true });
+
+    res.status(200).json({
+      success: true,
+      data: guide,
     });
   } catch (error) {
     next(error);

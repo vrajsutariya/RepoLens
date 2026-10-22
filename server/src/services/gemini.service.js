@@ -59,6 +59,244 @@ export const QA_RESPONSE_SCHEMA = {
 };
 
 /**
+ * Standard Structured Response Schema for Repository Onboarding Guide
+ */
+export const ONBOARDING_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    overview: {
+      type: Type.OBJECT,
+      properties: {
+        purpose: { type: Type.STRING, description: 'Core purpose and objective of the project based on repository evidence.' },
+        features: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Main application features identified in the codebase.' },
+        technologies: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              category: { type: Type.STRING },
+              version: { type: Type.STRING },
+              confidence: { type: Type.STRING, enum: ['manifest-verified', 'code-inferred'] },
+              purpose: { type: Type.STRING },
+            },
+            required: ['name', 'category'],
+          },
+        },
+        missingInfo: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Important facts that cannot be determined from available evidence.' },
+      },
+      required: ['purpose', 'features', 'technologies'],
+    },
+    architecture: {
+      type: Type.OBJECT,
+      properties: {
+        frontend: { type: Type.STRING, description: 'Frontend structure or N/A if headless/backend-only.' },
+        backend: { type: Type.STRING, description: 'Backend structure and design pattern.' },
+        entryPoints: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              path: { type: Type.STRING },
+              type: { type: Type.STRING },
+              description: { type: Type.STRING },
+              startLine: { type: Type.INTEGER },
+              endLine: { type: Type.INTEGER },
+            },
+            required: ['path', 'type'],
+          },
+        },
+        keyModules: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              path: { type: Type.STRING },
+              responsibility: { type: Type.STRING },
+              keySymbols: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['path', 'responsibility'],
+          },
+        },
+        relationships: { type: Type.STRING, description: 'Summary of internal component relationships and coupling.' },
+        recommendedGraph: { type: Type.STRING, enum: ['modules', 'api-flow', 'call-graph', 'database'] },
+      },
+      required: ['backend', 'relationships'],
+    },
+    setup: {
+      type: Type.OBJECT,
+      properties: {
+        prerequisites: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Required runtime versions or system prerequisites.' },
+        installCommands: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              command: { type: Type.STRING },
+              description: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+              warning: { type: Type.STRING },
+            },
+            required: ['command', 'description'],
+          },
+        },
+        devCommands: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              command: { type: Type.STRING },
+              description: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+              warning: { type: Type.STRING },
+            },
+            required: ['command', 'description'],
+          },
+        },
+        prodCommands: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              command: { type: Type.STRING },
+              description: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+              warning: { type: Type.STRING },
+            },
+            required: ['command', 'description'],
+          },
+        },
+        requiredServices: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              description: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+            },
+            required: ['name', 'description'],
+          },
+        },
+        expectedUrls: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              label: { type: Type.STRING },
+              url: { type: Type.STRING },
+              description: { type: Type.STRING },
+            },
+            required: ['label', 'url'],
+          },
+        },
+      },
+      required: ['prerequisites', 'installCommands', 'devCommands'],
+    },
+    environment: {
+      type: Type.OBJECT,
+      properties: {
+        hasExampleFile: { type: Type.BOOLEAN },
+        exampleFilePath: { type: Type.STRING },
+        setupInstructions: { type: Type.STRING },
+        variables: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              description: { type: Type.STRING },
+              required: { type: Type.BOOLEAN },
+              placeholder: { type: Type.STRING },
+              usedBy: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+            },
+            required: ['name', 'description'],
+          },
+        },
+      },
+      required: ['hasExampleFile', 'variables'],
+    },
+    readingOrder: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          order: { type: Type.INTEGER },
+          filePath: { type: Type.STRING },
+          purpose: { type: Type.STRING },
+          whyItMatters: { type: Type.STRING },
+          keySymbols: { type: Type.ARRAY, items: { type: Type.STRING } },
+          startLine: { type: Type.INTEGER },
+          endLine: { type: Type.INTEGER },
+          nextFile: { type: Type.STRING },
+        },
+        required: ['order', 'filePath', 'purpose', 'whyItMatters'],
+      },
+    },
+    requestFlow: {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING },
+        steps: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              step: { type: Type.INTEGER },
+              component: { type: Type.STRING },
+              action: { type: Type.STRING },
+              filePath: { type: Type.STRING },
+              startLine: { type: Type.INTEGER },
+              endLine: { type: Type.INTEGER },
+              isVerified: { type: Type.BOOLEAN },
+              confidence: { type: Type.STRING },
+            },
+            required: ['step', 'component', 'action'],
+          },
+        },
+        limitations: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: ['summary', 'steps'],
+    },
+    testingAndTroubleshooting: {
+      type: Type.OBJECT,
+      properties: {
+        hasTests: { type: Type.BOOLEAN },
+        testCommands: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              command: { type: Type.STRING },
+              description: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+            },
+            required: ['command', 'description'],
+          },
+        },
+        testDirectories: { type: Type.ARRAY, items: { type: Type.STRING } },
+        troubleshooting: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              issue: { type: Type.STRING },
+              possibleCause: { type: Type.STRING },
+              suggestedFix: { type: Type.STRING },
+              isVerified: { type: Type.BOOLEAN },
+            },
+            required: ['issue', 'possibleCause', 'suggestedFix'],
+          },
+        },
+      },
+      required: ['hasTests', 'testCommands', 'troubleshooting'],
+    },
+  },
+  required: ['overview', 'architecture', 'setup', 'environment', 'readingOrder', 'requestFlow', 'testingAndTroubleshooting'],
+};
+
+/**
  * Gemini Service Module
  *
  * Encapsulates Google Gemini API communication using the official @google/genai SDK.
@@ -123,7 +361,7 @@ class GeminiService {
    * Gets the configured Gemini model name.
    */
   getModelName() {
-    return config.geminiModel || 'gemini-2.5-flash';
+    return config.geminiModel || 'gemini-3.5-flash';
   }
 
   /**

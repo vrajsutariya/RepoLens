@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Repository from '../../models/Repository.js';
 import AnalysisResult from '../../models/AnalysisResult.js';
+import OnboardingGuide from '../../models/OnboardingGuide.js';
 import { getRepoExtractedDir } from '../../config/storage.js';
 import { assertSafePath } from '../../utils/pathSafety.js';
 import { analyzeLanguages } from './languageDetector.js';
@@ -166,6 +167,13 @@ export const analyzeRepository = async (repositoryId) => {
     analysis.completedAt = new Date();
 
     await analysis.save();
+
+    // Mark any existing onboarding guide for this repository as stale
+    try {
+      await OnboardingGuide.updateOne({ repositoryId }, { $set: { isStale: true } });
+    } catch {
+      // Non-fatal if guide update fails
+    }
 
     console.info(
       `[CodeIntelligence] Analysis completed for repository "${repository.name}" (${symbols.length} symbols, ${apiEndpoints.length} endpoints, ${frameworks.length} frameworks).`

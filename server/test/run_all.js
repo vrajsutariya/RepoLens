@@ -31,6 +31,8 @@ async function main() {
     await runTestFile('ingestion.test.js');
     await runTestFile('analysis.test.js');
     await runTestFile('qa.test.js');
+    await runTestFile('graph.test.js');
+    await runTestFile('onboarding.test.js');
     console.log('\n[SUCCESS] All RepoLens test suites passed successfully!\n');
     process.exit(0);
   } catch (err) {

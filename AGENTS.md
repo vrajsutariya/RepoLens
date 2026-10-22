@@ -36,7 +36,7 @@ This document provides architectural standards, security rules, and engineering 
 ## 2. AI and Code Intelligence Guidelines
 
 - **Service Layer Isolation**: Interact with Google Gemini exclusively through `server/src/services/gemini.service.js` using the official `@google/genai` SDK.
-- **Configurable Models**: Read model configurations dynamically from `GEMINI_MODEL` (default: `gemini-2.5-flash`). Never hardcode model identifiers in application logic.
+- **Configurable Models**: Read model configurations dynamically from `GEMINI_MODEL` (default: `gemini-3.5-flash`). Never hardcode model identifiers in application logic.
 - **Evidence-Based Grounding**:
   - Ground all AI-generated explanations in verified repository evidence.
   - Always preserve source file paths and line numbers when preparing code context for the model.

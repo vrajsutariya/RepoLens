@@ -30,10 +30,21 @@ export default function AiAssistantTab({
   repositoryName,
   analysisStatus,
   onNavigateToFile,
+  initialQuestion,
+  onClearInitialQuestion,
 }) {
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(initialQuestion || '');
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // Sync initialQuestion when passed from outside
+  useEffect(() => {
+    if (initialQuestion) {
+      setQuestion(initialQuestion);
+      textareaRef.current?.focus();
+      if (onClearInitialQuestion) onClearInitialQuestion();
+    }
+  }, [initialQuestion, onClearInitialQuestion]);
 
   // Conversation history in current session
   const [history, setHistory] = useState([]);

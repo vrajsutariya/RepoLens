@@ -2,7 +2,7 @@
 
 > **Track:** Code Intelligence  
 > **Theme:** Git-inspired Dark Orange-Red & Black  
-> **Status:** Stage 4: Gemini-Powered Codebase Q&A & Evidence-Based Answers Complete
+> **Status:** Stage 6: AI-Powered Repository Onboarding Guide & Setup Assistant Complete
 
 ---
 
@@ -46,6 +46,20 @@ RepoLens/
 │   │   │   │   ├── EndpointsTab.jsx    # Express API routes & handlers
 │   │   │   │   ├── DatabaseTab.jsx     # Database models, schemas, & queries
 │   │   │   │   └── AiContextTab.jsx    # Grounded Gemini AI prompt context
+│   │   │   ├── onboarding/
+│   │   │   │   ├── OnboardingDashboard.jsx # Intelligent setup & onboarding workspace (Phase 6)
+│   │   │   │   ├── OnboardingSection.jsx   # Collapsible motion section wrapper (Phase 6)
+│   │   │   │   ├── SetupCommand.jsx        # Safe verified command cards with warnings (Phase 6)
+│   │   │   │   ├── EnvironmentVariableList.jsx # Redacted env checklist & .env exporter (Phase 6)
+│   │   │   │   ├── RecommendedFileList.jsx # Prioritized reading stepper with line links (Phase 6)
+│   │   │   │   ├── EvidenceCitation.jsx    # Grounded evidence snippets with code viewer links (Phase 6)
+│   │   │   │   └── OnboardingEmptyState.jsx# Initial generator view with feature highlights (Phase 6)
+│   │   │   ├── visualization/
+│   │   │   │   ├── GraphWorkspace.jsx  # Interactive React Flow canvas with pan, zoom & minimap (Phase 5)
+│   │   │   │   ├── GraphToolbar.jsx    # Graph type switcher, search, category filters & controls (Phase 5)
+│   │   │   │   ├── GraphLegend.jsx     # Node types & circular dependency cycle indicators (Phase 5)
+│   │   │   │   ├── GraphDetailsPanel.jsx # Node evidence, code viewer links & Ask AI deep-links (Phase 5)
+│   │   │   │   └── CustomGraphNode.jsx # Dark Git-styled node cards with typed handles (Phase 5)
 │   │   │   ├── DashboardHeader.jsx     # Hero header with quick actions
 │   │   │   ├── FileExplorer.jsx        # Recursive directory tree & file search
 │   │   │   ├── FileViewer.jsx          # Monospace code viewer with line numbers & citation highlighting
@@ -77,7 +91,8 @@ RepoLens/
 │   │   │   └── repository.controller.js# Ingestion, file, and code intelligence controllers
 │   │   ├── models/
 │   │   │   ├── Repository.js           # Repository metadata & raw file index
-│   │   │   └── AnalysisResult.js       # Persistent code intelligence results
+│   │   │   ├── AnalysisResult.js       # Persistent code intelligence results
+│   │   │   └── OnboardingGuide.js      # Persistent onboarding guides, setup steps & reading orders (Phase 6)
 │   │   ├── routes/
 │   │   │   ├── health.routes.js        # GET /api/health endpoint
 │   │   │   └── repository.routes.js    # Repository & intelligence endpoints
@@ -96,7 +111,9 @@ RepoLens/
 │   │   │   │   ├── qaRetrieval.service.js# Hybrid AST & metadata evidence retrieval (Phase 4)
 │   │   │   │   ├── qaValidator.js        # Authoritative claim and citation verification (Phase 4)
 │   │   │   │   ├── qaService.js          # Grounded prompt construction & Gemini orchestrator (Phase 4)
-│   │   │   │   └── suggestedQuestions.service.js # Feature-grounded question generator (Phase 4)
+│   │   │   │   ├── suggestedQuestions.service.js # Feature-grounded question generator (Phase 4)
+│   │   │   │   ├── graphBuilder.js       # Topological graph generator & coordinate calculator (Phase 5)
+│   │   │   │   └── onboardingService.js  # Evidence gathering, Gemini synthesis & disk validation (Phase 6)
 │   │   │   ├── zipIngestion.service.js   # ZIP Slip defense & archive decompression
 │   │   │   ├── gitIngestion.service.js   # SSRF validation & depth-1 public Git clone
 │   │   │   ├── fileIndexer.service.js    # File walker & hierarchical tree builder
@@ -107,7 +124,9 @@ RepoLens/
 │   │   ├── ingestion.test.js           # Automated ingestion verification test suite
 │   │   ├── analysis.test.js            # Automated code intelligence test suite
 │   │   ├── qa.test.js                  # Automated Gemini codebase Q&A test suite (Phase 4)
-│   │   └── run_all.js                  # Unified test runner (59 verified tests)
+│   │   ├── graph.test.js               # Automated graph visualization test suite (Phase 5)
+│   │   ├── onboarding.test.js          # Automated onboarding guide test suite (Phase 6)
+│   │   └── run_all.js                  # Unified test runner (105 verified tests across 5 suites)
 │   ├── .env.example                    # Server environment template
 │   └── package.json
 ├── docs/
@@ -123,11 +142,13 @@ RepoLens/
 ## 4. Quick Start
 
 ### 1. Install Dependencies
+
 ```bash
 npm run install:all
 ```
 
 ### 2. Configure Environment
+
 ```bash
 # Frontend
 cp client/.env.example client/.env
@@ -135,24 +156,29 @@ cp client/.env.example client/.env
 # Backend
 cp server/.env.example server/.env
 ```
+
 Default `server/.env`:
+
 ```dotenv
 PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb://127.0.0.1:27017/repolens
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=AQ.Ab8RN6Jxw_D2u-Gcsm7EIWL77FKtd48T4VzofmkmXZJxgnwBww
+GEMINI_MODEL=gemini-3.5-flash
 ```
 
 ### 3. Run Development Servers
+
 ```bash
 npm run dev
 ```
+
 - **Frontend Dashboard:** [http://localhost:5173](http://localhost:5173)
 - **Backend API:** [http://localhost:5000](http://localhost:5000)
 
-### 4. Run Automated Test Suite (59 Test Cases Across 3 Suites)
+### 4. Run Automated Test Suite (105 Test Cases Across 5 Suites)
+
 ```bash
 npm test
 ```
@@ -162,13 +188,16 @@ npm test
 ## 5. API Endpoints
 
 ### System Health
+
 - `GET /api/health` — System status, uptime, database state, and Gemini configuration.
 
 ### Repository Ingestion
+
 - `POST /api/repositories/upload` — Ingest a repository ZIP archive (multipart/form-data, max 25MB).
 - `POST /api/repositories/import` — Ingest a public Git repository (`{ "url": "https://github.com/owner/repo" }`).
 
 ### Repository Inspection
+
 - `GET /api/repositories` — List recent ingested repositories.
 - `GET /api/repositories/:id` — Retrieve repository metadata.
 - `GET /api/repositories/:id/tree` — Retrieve hierarchical file tree.
@@ -176,6 +205,7 @@ npm test
 - `GET /api/repositories/:id/file?path=...` — Retrieve safe text content with line numbers.
 
 ### Code Intelligence (Phase 3)
+
 - `POST /api/repositories/:id/analyze` — Start or rerun static analysis.
 - `GET /api/repositories/:id/analysis` — Retrieve complete analysis knowledge base and metrics.
 - `GET /api/repositories/:id/languages` — Retrieve detailed language composition and LOC.
@@ -186,27 +216,55 @@ npm test
 - `GET /api/repositories/:id/context` — Retrieve verified Markdown context prepared for Gemini AI.
 
 ### Gemini-Powered Codebase Q&A (Phase 4)
+
 - `POST /api/repositories/:id/ask` — Ask natural-language codebase questions grounded in verified repository evidence. Rate-limited (60 requests / 15m), with structured schema validation and authoritative line citation verification.
 - `GET /api/repositories/:id/suggested-questions` — Dynamic questions tailored strictly to detected repository features (authentication, endpoints, database models, startup).
+
+### Interactive Architecture & Execution Flow Visualization (Phase 5)
+
+- `GET /api/repositories/:id/graph?type=modules` — Retrieve interactive module dependency graph with entry points and cycle detection.
+- `GET /api/repositories/:id/graph?type=api-flow` — Retrieve API execution flow graph tracing HTTP routes to controllers and database operations.
+- `GET /api/repositories/:id/graph?type=call-graph` — Retrieve function and method call graph with AST-verified line numbers.
+- `GET /api/repositories/:id/graph?type=database` — Retrieve database interaction graph connecting handlers to models and CRUD operations.
+
+### Repository Onboarding & Setup Assistant (Phase 6)
+
+- `GET /api/repositories/:id/onboarding` — Retrieve the current cached onboarding guide, setup commands, reading order, and staleness status.
+- `POST /api/repositories/:id/onboarding/generate` — Generate an AI-powered onboarding and setup guide synthesized from verified repository evidence.
+- `POST /api/repositories/:id/onboarding/regenerate` — Force regeneration of the onboarding guide, bypassing cache and refreshing with latest code intelligence.
 
 ---
 
 ## 6. Implementation Status & Roadmap
 
-| Phase | Feature | Status |
-| :---: | :--- | :---: |
-| **Phase 1** | MERN Foundation, Design System, Health Checks | **Completed** |
-| **Phase 2** | Interactive UI, ZIP & Git Repository Ingestion | **Completed** |
-| **Phase 3** | **AST Symbol Extraction (@babel/parser)** | **Completed** |
-| Phase 3 | **Express API Route & Handler Detection** | **Completed** |
-| Phase 3 | **Database Schema, Model & Query Detection** | **Completed** |
-| Phase 3 | **Import Dependency Graph & Cycle Detection** | **Completed** |
-| Phase 3 | **Intelligence Dashboard (Overview, Symbols, Endpoints, Database)** | **Completed** |
-| Phase 3 | **Grounded Gemini AI Context Builder** | **Completed** |
-| **Phase 4** | **Gemini-Powered Codebase Q&A Engine (`/ask`)** | **Completed** |
-| Phase 4 | **Hybrid Retrieval without Vector DB (AST + Endpoints + Models + Imports)** | **Completed** |
-| Phase 4 | **Authoritative Citation & Claim Validation Pipeline** | **Completed** |
-| Phase 4 | **Distinction Between Verified Source Facts & Inferences** | **Completed** |
-| Phase 4 | **Interactive Code Citation Viewer with Exact Line Highlighting** | **Completed** |
-| Phase 4 | **Feature-Grounded Suggested Questions Generator** | **Completed** |
-| Phase 4 | **59 Automated Verification Tests Across All Suites** | **Completed** |
+|    Phase    | Feature                                                                     |    Status     |
+| :---------: | :-------------------------------------------------------------------------- | :-----------: |
+| **Phase 1** | MERN Foundation, Design System, Health Checks                               | **Completed** |
+| **Phase 2** | Interactive UI, ZIP & Git Repository Ingestion                              | **Completed** |
+| **Phase 3** | **AST Symbol Extraction (@babel/parser)**                                   | **Completed** |
+|   Phase 3   | **Express API Route & Handler Detection**                                   | **Completed** |
+|   Phase 3   | **Database Schema, Model & Query Detection**                                | **Completed** |
+|   Phase 3   | **Import Dependency Graph & Cycle Detection**                               | **Completed** |
+|   Phase 3   | **Intelligence Dashboard (Overview, Symbols, Endpoints, Database)**         | **Completed** |
+|   Phase 3   | **Grounded Gemini AI Context Builder**                                      | **Completed** |
+| **Phase 4** | **Gemini-Powered Codebase Q&A Engine (`/ask`)**                             | **Completed** |
+|   Phase 4   | **Hybrid Retrieval without Vector DB (AST + Endpoints + Models + Imports)** | **Completed** |
+|   Phase 4   | **Authoritative Citation & Claim Validation Pipeline**                      | **Completed** |
+|   Phase 4   | **Distinction Between Verified Source Facts & Inferences**                  | **Completed** |
+|   Phase 4   | **Interactive Code Citation Viewer with Exact Line Highlighting**           | **Completed** |
+|   Phase 4   | **Feature-Grounded Suggested Questions Generator**                          | **Completed** |
+| **Phase 5** | **Interactive React Flow Graph Workspace (`@xyflow/react`)**                | **Completed** |
+|   Phase 5   | **Module Dependency Graph with Entry Points & Cycle Detection**             | **Completed** |
+|   Phase 5   | **API Request Flow Graph (Route -> Controller -> Database)**                | **Completed** |
+|   Phase 5   | **Function and Call Graph with AST Line Ranges**                            | **Completed** |
+|   Phase 5   | **Database Interaction Graph with CRUD Operation Mapping**                  | **Completed** |
+|   Phase 5   | **Bidirectional Deep-Linking to FileViewer & AiAssistantTab**               | **Completed** |
+| **Phase 6** | **AI-Powered Onboarding Guide Engine (`/onboarding`)**                      | **Completed** |
+|   Phase 6   | **Evidence Gathering (README, package.json scripts, .env templates)**       | **Completed** |
+|   Phase 6   | **Safe Setup Commands with Verification Badges & Warnings**                 | **Completed** |
+|   Phase 6   | **Environment Variable Checklist & Automatic Secret Redaction**             | **Completed** |
+|   Phase 6   | **Recommended Reading Order with File & Line Links**                        | **Completed** |
+|   Phase 6   | **End-to-End Request & Data Flow Tracing**                                  | **Completed** |
+|   Phase 6   | **Testing & Common Setup Troubleshooting Heuristics**                       | **Completed** |
+|   Phase 6   | **Guide Caching & Re-analysis Staleness Invalidation**                      | **Completed** |
+|   Phase 6   | **105 Automated Verification Tests Across 5 Suites**                        | **Completed** |

@@ -13,9 +13,11 @@ import {
   VscLoading,
   VscHubot,
   VscSparkle,
+  VscGraph,
+  VscBook,
 } from 'react-icons/vsc';
 
-export default function OverviewTab({ analysis, onNavigateToFile, onRerunAnalysis, isAnalyzing, onAskAi }) {
+export default function OverviewTab({ analysis, onNavigateToFile, onRerunAnalysis, isAnalyzing, onAskAi, onOpenGraphs, onOpenOnboarding }) {
   if (!analysis) {
     return (
       <div className="p-5 text-center text-repolens-secondary">
@@ -95,14 +97,36 @@ export default function OverviewTab({ analysis, onNavigateToFile, onRerunAnalysi
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onAskAi}
-            className="btn btn-sm btn-repolens-primary py-1 px-3 d-flex align-items-center gap-2"
-          >
-            <VscSparkle size={15} />
-            <span>Open AI Assistant</span>
-          </button>
+          <div className="d-flex align-items-center gap-2">
+            {onOpenOnboarding && (
+              <button
+                type="button"
+                onClick={onOpenOnboarding}
+                className="btn btn-sm btn-repolens-primary py-1 px-3 d-flex align-items-center gap-2"
+              >
+                <VscBook size={14} />
+                <span>Onboarding Guide</span>
+              </button>
+            )}
+            {onOpenGraphs && (
+              <button
+                type="button"
+                onClick={onOpenGraphs}
+                className="btn btn-sm btn-repolens-outline py-1 px-3 d-flex align-items-center gap-2"
+              >
+                <VscGraph size={14} style={{ color: 'var(--color-primary)' }} />
+                <span>Architecture Graphs</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onAskAi}
+              className="btn btn-sm btn-repolens-outline py-1 px-3 d-flex align-items-center gap-2 text-white"
+            >
+              <VscSparkle size={14} />
+              <span>AI Assistant</span>
+            </button>
+          </div>
         </div>
       )}
 
