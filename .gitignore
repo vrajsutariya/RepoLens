@@ -35,6 +35,10 @@ pnpm-debug.log*
 *.pid
 *.seed
 *.pid.lock
+storage/
+server/storage/
+server/uploads/
+
 
 # IDE and OS files
 .DS_Store

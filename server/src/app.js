@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { config } from './config/env.js';
 import healthRoutes from './routes/health.routes.js';
+import repositoryRoutes from './routes/repository.routes.js';
 import notFoundHandler from './middleware/notFoundHandler.js';
 import errorHandler from './middleware/errorHandler.js';
 
@@ -62,6 +63,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Mount API routes
 app.use('/api/health', healthRoutes);
+app.use('/api/repositories', repositoryRoutes);
 
 // Root informational endpoint
 app.get('/', (req, res) => {

@@ -1,6 +1,13 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Load environment variables immediately before any configuration is accessed
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load server/.env relative to this config file
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Also load any root .env as fallback
 dotenv.config();
 
 export const config = {

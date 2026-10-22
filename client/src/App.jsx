@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
-import WorkspacePlaceholder from './pages/WorkspacePlaceholder';
+import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
 import { checkHealth } from './services/api';
 
@@ -63,17 +63,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <MainLayout backendStatus={backendStatus}>
+      <MainLayout backendStatus={backendStatus} onRetryHealth={handleRetryHealth}>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <WorkspacePlaceholder
-                backendStatus={backendStatus}
-                onRetryHealth={handleRetryHealth}
-              />
-            }
-          />
+          <Route path="/" element={<Dashboard backendStatus={backendStatus} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </MainLayout>
