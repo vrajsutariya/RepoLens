@@ -9,7 +9,6 @@ import {
   VscWarning,
   VscFileMedia,
   VscInfo,
-  VscClearAll,
 } from 'react-icons/vsc';
 
 export default function FileViewer({

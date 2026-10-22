@@ -225,7 +225,7 @@ The backend (`qaValidator.js`) serves as the single source of truth for citation
 ### 7.5 Gemini Configuration
 
 - Set `GEMINI_API_KEY` in `server/.env`.
-- Optionally configure `GEMINI_MODEL` (defaults to `gemini-3.5-flash`).
+- Optionally configure `GEMINI_MODEL` (defaults to `gemini-3.8-flash`).
 - When `GEMINI_API_KEY` is omitted, the API responds with a structured `503 Service Unavailable` error and detailed troubleshooting advice.
 
 ---
@@ -429,3 +429,30 @@ All model outputs undergo strict server-side validation before persistence:
 - **Caching**: Generated guides are persisted in the `OnboardingGuide` MongoDB collection to prevent redundant Gemini API calls.
 - **Staleness Tracking**: When a repository is re-analyzed (`/api/repositories/:id/analyze`), the existing guide is marked `isStale: true`.
 - **Regeneration**: Developers can trigger forced regeneration anytime via `POST /api/repositories/:id/onboarding/regenerate`, bypassing cached results.
+
+---
+
+## 10. Repository Management, Navigation & FAQ Fallback System
+
+### 10.1 Repository Deletion & Safe Cascading Cleanup
+
+- **Cascading Purge**: `DELETE /api/repositories/:id` validates the ObjectId, confirms existence, and cascades deletion across all related MongoDB collections (`AnalysisResult`, `OnboardingGuide`, `Repository`).
+- **Disk Storage Cleanup**: Safely resolves the repository's `storageKey` against `getRepoStorageDir(storageKey)` and deletes extracted files and archives with path traversal protection.
+- **Accessible UX**: The frontend features a dedicated confirmation dialog (`DeleteRepositoryModal.jsx`) in the dark Git-inspired theme, displaying the repository name, warning of permanent analysis removal, disabling repeated clicks during in-flight deletion, and resetting the active workspace view immediately.
+
+### 10.2 Responsive Top Navigation & Horizontal Overflow Controls
+
+- **Zero-Clipping Architecture**: Resolves top navigation overflow in `RepositoryResultsView.jsx` using `overflow-x: auto`, `flex-nowrap`, `flex-shrink: 0`, and `min-width: 0`.
+- **Interactive Scroll Controls**: Conditional left and right chevron scroll buttons appear dynamically when tabs overflow the viewport width, with smooth scrolling on click.
+- **Multi-Input Accessibility**: Seamlessly navigable via keyboard focus-visible, mouse wheel horizontal translation, trackpad swiping, and mobile touch gestures.
+
+### 10.3 Predefined FAQ Knowledge Base & Gemini Fallback Engine
+
+- **Authoritative Knowledge Base**: Structured `faqKnowledgeBase.js` module providing comprehensive, accurate answers to the 15 core platform, architecture, and security questions.
+- **Deterministic Matcher**: Normalizes input text (case, punctuation, whitespace, synonyms), scores token overlap and keyword matches, and returns high-confidence matches without guessing.
+- **Multi-Tier Fallback Priority**:
+  1. Normal Gemini AI generation when configured and healthy.
+  2. Instant predefined FAQ answer when `GEMINI_API_KEY` is missing (without attempting API calls).
+  3. Predefined FAQ answer when Gemini encounters rate limits (429), auth failures (401), timeouts (504), or server errors (503).
+  4. Clear error diagnostics with suggested FAQ topics when questions do not match.
+- **Attribution Integrity**: Distinguishes predefined help with a prominent `FAQ Answer · Offline Help` badge, preserving source fact integrity and avoiding fabricated citations.

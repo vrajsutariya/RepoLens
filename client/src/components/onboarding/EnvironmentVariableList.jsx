@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { VscCopy, VscCheck, VscShield, VscFileCode, VscChecklist } from 'react-icons/vsc';
+import { VscCopy, VscCheck, VscShield, VscFileCode } from 'react-icons/vsc';
 
 export default function EnvironmentVariableList({
   variables = [],

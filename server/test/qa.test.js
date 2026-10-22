@@ -4,6 +4,7 @@ import fs from 'fs';
 import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import connectDB from '../src/config/db.js';
+import { config } from '../src/config/env.js';
 import geminiService from '../src/services/gemini.service.js';
 import { retrieveCodeEvidence } from '../src/services/code-intelligence/qaRetrieval.service.js';
 import { validateQAResult } from '../src/services/code-intelligence/qaValidator.js';
@@ -257,19 +258,20 @@ export default User;
     // -------------------------------------------------------------------------
     // Test 6: Handling missing Gemini configuration
     // -------------------------------------------------------------------------
-    // Ensure mock is cleared so getClient checks environment
     geminiService.resetMockClient();
-    const askMissingConfigRes = await fetch(`${API_BASE}/repositories/${repoId}/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: 'Where is the User model defined?' }),
-    });
-    const askMissingConfigData = await askMissingConfigRes.json();
-    assert(
-      !askMissingConfigData.success &&
-        (askMissingConfigRes.status === 503 || askMissingConfigData.error?.message?.includes('GEMINI_API_KEY')),
-      'Test 6: Missing Gemini API key reports clean HTTP 503 configuration error'
-    );
+    const originalApiKey = config.geminiApiKey;
+    let missingConfigCaught = false;
+    try {
+      config.geminiApiKey = '';
+      await answerCodebaseQuestion(repoId, 'Where is the User model defined?');
+    } catch (err) {
+      missingConfigCaught =
+        err.statusCode === 503 &&
+        (err.code === 'GEMINI_NOT_CONFIGURED' || err.message?.includes('GEMINI_API_KEY'));
+    } finally {
+      config.geminiApiKey = originalApiKey;
+    }
+    assert(missingConfigCaught, 'Test 6: Missing Gemini API key reports clean HTTP 503 configuration error');
 
     // -------------------------------------------------------------------------
     // Test 7: Handling Gemini API errors and timeouts gracefully

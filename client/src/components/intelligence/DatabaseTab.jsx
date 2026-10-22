@@ -44,7 +44,7 @@ export default function DatabaseTab({ databaseInteractions = [], onNavigateToFil
               <div
                 key={`${item.technology}-${item.modelName}-${item.file}-${idx}`}
                 className="p-3 rounded d-flex flex-wrap align-items-center justify-content-between gap-3 border border-repolens"
-                style={{ backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}
+                style={{ backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-sm)' }}
               >
                 <div className="d-flex align-items-center gap-3 overflow-hidden">
                   <div

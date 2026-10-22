@@ -195,7 +195,7 @@ const OnboardingGuideSchema = new mongoose.Schema(
     evidence: [EvidenceSnippetSchema],
     metadata: {
       generatedAt: { type: Date, default: Date.now },
-      modelUsed: { type: String, default: 'gemini-3.5-flash' },
+      modelUsed: { type: String, default: 'gemini-3.8-flash' },
       generationDurationMs: { type: Number, default: 0 },
     },
   },

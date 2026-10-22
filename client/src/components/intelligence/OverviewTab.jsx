@@ -18,17 +18,58 @@ import {
 } from 'react-icons/vsc';
 
 export default function OverviewTab({ analysis, onNavigateToFile, onRerunAnalysis, isAnalyzing, onAskAi, onOpenGraphs, onOpenOnboarding }) {
-  if (!analysis) {
+  // 1. Loading / In-Progress Analysis State
+  if (isAnalyzing || analysis?.status === 'processing') {
     return (
-      <div className="p-5 text-center text-repolens-secondary">
-        <VscLayers size={36} className="mb-2 opacity-50" />
-        <h6 className="text-white">Analysis Pending</h6>
-        <p className="small">Trigger static code intelligence to analyze symbols, frameworks, and architecture.</p>
+      <div className="p-5 text-center text-repolens-secondary d-flex flex-column align-items-center justify-content-center h-100">
+        <VscLoading className="spin mb-3" size={36} style={{ color: 'var(--color-primary)' }} />
+        <h5 className="text-white fw-bold mb-2">Analyzing Codebase</h5>
+        <p className="small mb-3 text-repolens-secondary" style={{ maxWidth: '480px', lineHeight: 1.6 }}>
+          Extracting AST symbols, detecting API endpoints, evaluating database schemas, and synthesizing architecture metrics.
+        </p>
+        <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2" style={{ fontSize: '0.75rem' }}>
+          Deterministic Analysis in Progress...
+        </span>
+      </div>
+    );
+  }
+
+  // 2. Failed Analysis State
+  if (analysis?.status === 'failed') {
+    return (
+      <div className="p-5 text-center text-danger d-flex flex-column align-items-center justify-content-center h-100">
+        <VscWarning size={42} className="mb-3 text-danger" />
+        <h5 className="text-white fw-bold mb-2">Code Intelligence Analysis Failed</h5>
+        <p className="small text-repolens-secondary mb-3" style={{ maxWidth: '480px' }}>
+          {analysis.errorMessage || 'An unexpected error occurred during static analysis.'}
+        </p>
         <button
           type="button"
           onClick={onRerunAnalysis}
           disabled={isAnalyzing}
-          className="btn btn-sm btn-repolens-primary"
+          className="btn btn-sm btn-repolens-primary px-3 py-2 d-flex align-items-center gap-2"
+        >
+          <VscRefresh size={14} />
+          <span>Retry Analysis</span>
+        </button>
+      </div>
+    );
+  }
+
+  // 3. Pending / Unanalyzed State
+  if (!analysis) {
+    return (
+      <div className="p-5 text-center text-repolens-secondary d-flex flex-column align-items-center justify-content-center h-100">
+        <VscLayers size={36} className="mb-2 opacity-50" />
+        <h6 className="text-white">Analysis Pending</h6>
+        <p className="small mb-3" style={{ maxWidth: '420px' }}>
+          Trigger static code intelligence to analyze symbols, frameworks, and architecture.
+        </p>
+        <button
+          type="button"
+          onClick={onRerunAnalysis}
+          disabled={isAnalyzing}
+          className="btn btn-sm btn-repolens-primary px-3 py-2"
         >
           {isAnalyzing ? <VscLoading className="spin me-1" size={14} /> : <VscRocket className="me-1" size={14} />}
           <span>Run Analysis Now</span>

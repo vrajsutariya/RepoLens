@@ -25,6 +25,8 @@ import {
   getRepositoryOnboardingGuide,
   generateRepositoryOnboardingGuide,
   regenerateRepositoryOnboardingGuide,
+  deleteRepository,
+  getRepositoryFaqEntries,
 } from '../controllers/repository.controller.js';
 
 const router = Router();
@@ -106,7 +108,9 @@ router.post('/import', importGitRepository);
  * Repository Inspection Endpoints
  */
 router.get('/', getRepositories);
+router.get('/faq', getRepositoryFaqEntries);
 router.get('/:id', getRepositoryById);
+router.delete('/:id', deleteRepository);
 router.get('/:id/tree', getRepositoryTree);
 router.get('/:id/files', getRepositoryFiles);
 router.get('/:id/file', getRepositoryFileContent);

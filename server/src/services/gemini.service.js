@@ -306,6 +306,7 @@ class GeminiService {
   constructor() {
     this._client = null;
     this._mockClient = null;
+    this._inFlightRequests = new Map();
   }
 
   /**
@@ -361,7 +362,7 @@ class GeminiService {
    * Gets the configured Gemini model name.
    */
   getModelName() {
-    return config.geminiModel || 'gemini-3.5-flash';
+    return config.geminiModel || 'gemini-3.8-flash';
   }
 
   /**
@@ -396,12 +397,14 @@ class GeminiService {
 
   /**
    * Generates a structured JSON answer from Gemini using schema enforcement and strict grounding.
+   * Includes in-flight deduplication, bounded exponential backoff for transient errors, and diagnostic timing.
    *
    * @param {object} options
    * @param {string} options.prompt - Grounded user prompt with repository evidence
    * @param {string} options.systemInstruction - Strict system rules for citations & facts
    * @param {object} [options.schema] - Output JSON schema (defaults to QA_RESPONSE_SCHEMA)
    * @param {number} [options.timeoutMs=35000] - Request timeout in ms
+   * @param {number} [options.maxRetries=2] - Maximum retries for transient errors (429/503)
    * @returns {Promise<{ rawText: string, data: object }>} Parsed structured response
    */
   async generateStructuredAnswer({
@@ -409,103 +412,143 @@ class GeminiService {
     systemInstruction,
     schema = QA_RESPONSE_SCHEMA,
     timeoutMs = 35000,
+    maxRetries = 2,
   }) {
     const client = this.getClient();
     const model = this.getModelName();
 
-    const requestConfig = {
-      systemInstruction,
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature: 0.2, // Low temperature for high factual accuracy
-    };
+    // In-flight deduplication key based on model and prompt boundaries
+    const requestKey = `${model}:${prompt?.length || 0}:${(prompt || '').slice(0, 80)}:${(prompt || '').slice(-80)}`;
+    if (this._inFlightRequests.has(requestKey)) {
+      return this._inFlightRequests.get(requestKey);
+    }
 
-    // Execute generation with timeout guard
-    const generatePromise = client.models.generateContent({
-      model,
-      contents: prompt,
-      config: requestConfig,
-    });
+    const executionPromise = (async () => {
+      const requestConfig = {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+        temperature: 0.2, // Low temperature for high factual accuracy
+      };
 
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        const err = new Error(`Gemini request timed out after ${timeoutMs / 1000}s`);
-        err.statusCode = 504;
-        err.code = 'GEMINI_TIMEOUT';
-        reject(err);
-      }, timeoutMs);
-    });
+      const startTime = Date.now();
 
-    let response;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        let timeoutId;
+        const generatePromise = client.models.generateContent({
+          model,
+          contents: prompt,
+          config: requestConfig,
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            const err = new Error(`Gemini request timed out after ${timeoutMs / 1000}s`);
+            err.statusCode = 504;
+            err.code = 'GEMINI_TIMEOUT';
+            reject(err);
+          }, timeoutMs);
+        });
+
+        try {
+          const response = await Promise.race([generatePromise, timeoutPromise]);
+          clearTimeout(timeoutId);
+
+          const elapsed = Date.now() - startTime;
+          console.info(
+            `[GeminiService] Structured answer generated in ${elapsed}ms using model "${model}" (attempt ${attempt + 1})`
+          );
+
+          // Extract text safely from response
+          let rawText = '';
+          if (typeof response?.text === 'string') {
+            rawText = response.text;
+          } else if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+            rawText = response.candidates[0].content.parts[0].text;
+          } else if (typeof response === 'string') {
+            rawText = response;
+          }
+
+          if (!rawText || !rawText.trim()) {
+            throw new Error('Gemini returned an empty response.');
+          }
+
+          // Clean JSON formatting if markdown fences were added
+          let cleaned = rawText.trim();
+          if (cleaned.startsWith('```json')) {
+            cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          } else if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+          }
+
+          let parsed;
+          try {
+            parsed = JSON.parse(cleaned);
+          } catch (parseErr) {
+            // Safe fallback extraction if model returned slightly malformed JSON
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              parsed = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error(`Failed to parse structured JSON from Gemini: ${parseErr.message}`);
+            }
+          }
+
+          return {
+            rawText,
+            data: parsed,
+          };
+        } catch (err) {
+          clearTimeout(timeoutId);
+
+          // Classify error for clear developer feedback
+          if (err.code === 'GEMINI_TIMEOUT') throw err;
+
+          const message = err.message || '';
+          let classifiedError = err;
+
+          if (message.includes('quota') || message.includes('RESOURCE_EXHAUSTED')) {
+            classifiedError = new Error('Gemini API rate limit or quota exceeded. Please retry shortly.');
+            classifiedError.statusCode = 429;
+            classifiedError.code = 'GEMINI_QUOTA_EXCEEDED';
+          } else if (message.includes('API key') || message.includes('API_KEY_INVALID') || message.includes('403')) {
+            classifiedError = new Error('Invalid Gemini API key or unauthorized request. Please verify GEMINI_API_KEY.');
+            classifiedError.statusCode = 401;
+            classifiedError.code = 'GEMINI_AUTH_ERROR';
+          } else if (!err.statusCode) {
+            classifiedError = new Error(`Gemini service error: ${message}`);
+            classifiedError.statusCode = 502;
+            classifiedError.code = 'GEMINI_API_ERROR';
+          }
+
+          // Check if error is transient and retryable
+          const isRetryable =
+            (classifiedError.code === 'GEMINI_QUOTA_EXCEEDED' ||
+              classifiedError.statusCode === 429 ||
+              classifiedError.statusCode === 503) &&
+            classifiedError.code !== 'GEMINI_TIMEOUT' &&
+            classifiedError.code !== 'GEMINI_AUTH_ERROR';
+
+          if (isRetryable && attempt < maxRetries) {
+            const backoff = Math.min(1000 * Math.pow(2, attempt), 3000) + Math.round(Math.random() * 200);
+            console.warn(
+              `[GeminiService] Transient error (${classifiedError.message}). Retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})...`
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoff));
+            continue;
+          }
+
+          throw classifiedError;
+        }
+      }
+    })();
+
+    this._inFlightRequests.set(requestKey, executionPromise);
     try {
-      response = await Promise.race([generatePromise, timeoutPromise]);
-    } catch (err) {
-      // Classify error for clear developer feedback
-      if (err.code === 'GEMINI_TIMEOUT') throw err;
-
-      const message = err.message || '';
-      if (message.includes('quota') || message.includes('RESOURCE_EXHAUSTED')) {
-        const error = new Error('Gemini API rate limit or quota exceeded. Please retry shortly.');
-        error.statusCode = 429;
-        error.code = 'GEMINI_QUOTA_EXCEEDED';
-        throw error;
-      }
-
-      if (message.includes('API key') || message.includes('API_KEY_INVALID') || message.includes('403')) {
-        const error = new Error('Invalid Gemini API key or unauthorized request. Please verify GEMINI_API_KEY.');
-        error.statusCode = 401;
-        error.code = 'GEMINI_AUTH_ERROR';
-        throw error;
-      }
-
-      const error = new Error(`Gemini service error: ${message}`);
-      error.statusCode = 502;
-      error.code = 'GEMINI_API_ERROR';
-      throw error;
+      return await executionPromise;
     } finally {
-      clearTimeout(timeoutId);
+      this._inFlightRequests.delete(requestKey);
     }
-
-    // Extract text safely from response
-    let rawText = '';
-    if (typeof response?.text === 'string') {
-      rawText = response.text;
-    } else if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      rawText = response.candidates[0].content.parts[0].text;
-    } else if (typeof response === 'string') {
-      rawText = response;
-    }
-
-    if (!rawText || !rawText.trim()) {
-      throw new Error('Gemini returned an empty response.');
-    }
-
-    // Clean JSON formatting if markdown fences were added
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      // Safe fallback extraction if model returned slightly malformed JSON
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error(`Failed to parse structured JSON from Gemini: ${parseErr.message}`);
-      }
-    }
-
-    return {
-      rawText,
-      data: parsed,
-    };
   }
 }
 

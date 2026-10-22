@@ -62,7 +62,7 @@ export default function DependenciesTab({ dependencies = {}, onNavigateToFile })
           <div className="d-flex flex-column gap-1">
             {circularDependencies.map((c, idx) => (
               <div key={idx} className="small text-white" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                Cycle #{idx + 1}: {c.cycle.join(' -> ')}
+                Cycle #{idx + 1}: {(c?.cycle || []).join(' -> ')}
               </div>
             ))}
           </div>
@@ -82,7 +82,7 @@ export default function DependenciesTab({ dependencies = {}, onNavigateToFile })
                 <div
                   key={`${imp.sourceFile}-${imp.targetFile}-${idx}`}
                   className="p-2 px-3 rounded d-flex align-items-center justify-content-between gap-3 border border-repolens"
-                  style={{ backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}
+                  style={{ backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-sm)' }}
                 >
                   <div className="d-flex align-items-center gap-2 overflow-hidden">
                     <button
@@ -152,7 +152,7 @@ export default function DependenciesTab({ dependencies = {}, onNavigateToFile })
                 <div
                   key={pkg.name}
                   className="p-2 px-3 rounded d-flex align-items-center justify-content-between gap-3 border border-repolens"
-                  style={{ backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}
+                  style={{ backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-sm)' }}
                 >
                   <div className="d-flex align-items-center gap-2">
                     <VscPackage size={16} style={{ color: 'var(--color-primary)' }} />

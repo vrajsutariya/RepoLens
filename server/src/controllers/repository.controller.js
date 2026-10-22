@@ -2,11 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import Repository from '../models/Repository.js';
 import AnalysisResult from '../models/AnalysisResult.js';
+import OnboardingGuide from '../models/OnboardingGuide.js';
 import { analyzeRepository } from '../services/code-intelligence/repositoryAnalyzer.js';
 import ContextBuilder from '../services/code-intelligence/contextBuilder.js';
 import { processZipUpload } from '../services/zipIngestion.service.js';
 import { processGitImport } from '../services/gitIngestion.service.js';
-import { getRepoExtractedDir } from '../config/storage.js';
+import { getRepoExtractedDir, getRepoStorageDir, cleanupDirectory } from '../config/storage.js';
 import { assertSafePath, isBinaryFile } from '../utils/pathSafety.js';
 import { detectLanguage } from '../utils/languageDetector.js';
 import { getDBStatus } from '../config/db.js';
@@ -671,9 +672,22 @@ export const askRepositoryQuestion = async (req, res, next) => {
         message: error.message || 'An error occurred while answering the codebase question.',
         status,
         code: error.code || null,
+        suggestedFaqs: error.suggestedFaqs || [],
       },
     });
   }
+};
+
+/**
+ * GET /api/repositories/faq
+ * Returns predefined FAQ knowledge base entries for offline help and onboarding.
+ */
+export const getRepositoryFaqEntries = async (req, res) => {
+  const { FAQ_ENTRIES } = await import('../services/code-intelligence/faqKnowledgeBase.js');
+  res.status(200).json({
+    success: true,
+    data: FAQ_ENTRIES,
+  });
 };
 
 /**
@@ -901,6 +915,68 @@ export const regenerateRepositoryOnboardingGuide = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: guide,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/repositories/:id
+ * Permanently deletes a repository and all its associated analysis results,
+ * onboarding guides, and extracted disk files.
+ */
+export const deleteRepository = async (req, res, next) => {
+  try {
+    assertDatabaseConnected();
+
+    const { id } = req.params;
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid repository ID format: "${id}".`,
+          status: 400,
+        },
+      });
+    }
+
+    const repository = await Repository.findById(id);
+    if (!repository) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: `Repository with ID "${id}" not found.`,
+          status: 404,
+        },
+      });
+    }
+
+    // 1. Delete associated database records across all models
+    await Promise.all([
+      AnalysisResult.deleteMany({ repositoryId: id }),
+      OnboardingGuide.deleteMany({ repositoryId: id }),
+    ]);
+
+    // 2. Delete the repository document itself
+    await Repository.findByIdAndDelete(id);
+
+    // 3. Safely clean up repository storage directory on disk
+    if (repository.storageKey && typeof repository.storageKey === 'string') {
+      const sanitizedKey = repository.storageKey.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (sanitizedKey.length > 0) {
+        const repoStorageDir = getRepoStorageDir(sanitizedKey);
+        await cleanupDirectory(repoStorageDir);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: `Repository "${repository.name}" and all associated analysis data were deleted successfully.`,
+        id,
+        deletedAt: new Date().toISOString(),
+      },
     });
   } catch (error) {
     next(error);

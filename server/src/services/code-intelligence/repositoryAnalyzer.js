@@ -72,6 +72,9 @@ const loadReadableFiles = async (repository, extractedDir, warnings = []) => {
   return { loadedFiles, parsedManifests };
 };
 
+// Map to track and deduplicate in-flight analysis promises per repository ID
+const inFlightAnalyses = new Map();
+
 /**
  * Executes static code intelligence analysis on an imported repository.
  *
@@ -79,113 +82,127 @@ const loadReadableFiles = async (repository, extractedDir, warnings = []) => {
  * @returns {Promise<object>} Persisted AnalysisResult document
  */
 export const analyzeRepository = async (repositoryId) => {
-  const repository = await Repository.findById(repositoryId);
-  if (!repository) {
-    throw new Error(`Repository with ID "${repositoryId}" not found.`);
+  const idStr = String(repositoryId);
+  if (inFlightAnalyses.has(idStr)) {
+    return inFlightAnalyses.get(idStr);
   }
 
-  const extractedDir = getRepoExtractedDir(repository.storageKey);
-  if (!fs.existsSync(extractedDir)) {
-    throw new Error(`Extracted repository directory does not exist on disk for storage key "${repository.storageKey}".`);
-  }
-
-  // 1. Initialize or reset analysis record as 'processing'
-  let analysis = await AnalysisResult.findOne({ repositoryId });
-  if (!analysis) {
-    analysis = new AnalysisResult({
-      repositoryId,
-      status: 'processing',
-      startedAt: new Date(),
-    });
-  } else {
-    analysis.status = 'processing';
-    analysis.startedAt = new Date();
-    analysis.completedAt = null;
-    analysis.errorMessage = null;
-  }
-  await analysis.save();
-
-  const warnings = [];
-
-  try {
-    // 2. Safe file discovery and content loading
-    const { loadedFiles, parsedManifests } = await loadReadableFiles(repository, extractedDir, warnings);
-
-    // 3. Language Statistics & Classification
-    const languages = analyzeLanguages(loadedFiles);
-
-    // 4. Framework Detection
-    const frameworks = detectFrameworks(loadedFiles, parsedManifests);
-
-    // 5. Entry Points & Configuration Discovery
-    const entryPoints = detectEntryPoints(loadedFiles, parsedManifests);
-
-    // 6. AST Symbol Extraction
-    const { symbols, fileImports } = extractSymbols(loadedFiles, warnings);
-
-    // 7. Express API Route Analysis
-    const apiEndpoints = analyzeApiEndpoints(loadedFiles);
-
-    // 8. Database Interaction Analysis
-    const databaseInteractions = analyzeDatabaseInteractions(loadedFiles);
-
-    // 9. Dependency & Import Graph
-    const dependencies = analyzeDependencies(fileImports, repository.fileList, parsedManifests);
-    const circularDependencies = findCircularDependencies(dependencies.internalImports);
-    dependencies.circularDependencies = circularDependencies;
-
-    const relationshipGraph = buildRelationshipGraph(repository.fileList, dependencies.internalImports, symbols);
-
-    // 10. Metrics Computation
-    let totalLOC = 0;
-    for (const f of loadedFiles) {
-      totalLOC += f.lineCount || 0;
+  const analysisPromise = (async () => {
+    const repository = await Repository.findById(repositoryId);
+    if (!repository) {
+      throw new Error(`Repository with ID "${repositoryId}" not found.`);
     }
 
-    const uniqueDbModels = new Set(databaseInteractions.map((db) => db.modelName));
+    const extractedDir = getRepoExtractedDir(repository.storageKey);
+    if (!fs.existsSync(extractedDir)) {
+      throw new Error(`Extracted repository directory does not exist on disk for storage key "${repository.storageKey}".`);
+    }
 
-    analysis.metrics = {
-      totalFilesAnalyzed: loadedFiles.length,
-      totalLOC,
-      symbolsCount: symbols.length,
-      apiEndpointsCount: apiEndpoints.length,
-      databaseModelsCount: uniqueDbModels.size,
-      relationshipsCount: dependencies.internalImports.length,
-    };
-
-    analysis.languages = languages;
-    analysis.frameworks = frameworks;
-    analysis.entryPoints = entryPoints;
-    analysis.symbols = symbols;
-    analysis.dependencies = dependencies;
-    analysis.apiEndpoints = apiEndpoints;
-    analysis.databaseInteractions = databaseInteractions;
-    analysis.relationshipGraph = relationshipGraph;
-    analysis.warnings = warnings;
-
-    analysis.status = 'completed';
-    analysis.completedAt = new Date();
-
+    // 1. Initialize or reset analysis record as 'processing'
+    let analysis = await AnalysisResult.findOne({ repositoryId });
+    if (!analysis) {
+      analysis = new AnalysisResult({
+        repositoryId,
+        status: 'processing',
+        startedAt: new Date(),
+      });
+    } else {
+      analysis.status = 'processing';
+      analysis.startedAt = new Date();
+      analysis.completedAt = null;
+      analysis.errorMessage = null;
+    }
     await analysis.save();
 
-    // Mark any existing onboarding guide for this repository as stale
+    const warnings = [];
+
     try {
-      await OnboardingGuide.updateOne({ repositoryId }, { $set: { isStale: true } });
-    } catch {
-      // Non-fatal if guide update fails
+      // 2. Safe file discovery and content loading
+      const { loadedFiles, parsedManifests } = await loadReadableFiles(repository, extractedDir, warnings);
+
+      // 3. Language Statistics & Classification
+      const languages = analyzeLanguages(loadedFiles);
+
+      // 4. Framework Detection
+      const frameworks = detectFrameworks(loadedFiles, parsedManifests);
+
+      // 5. Entry Points & Configuration Discovery
+      const entryPoints = detectEntryPoints(loadedFiles, parsedManifests);
+
+      // 6. AST Symbol Extraction
+      const { symbols, fileImports } = extractSymbols(loadedFiles, warnings);
+
+      // 7. Express API Route Analysis
+      const apiEndpoints = analyzeApiEndpoints(loadedFiles);
+
+      // 8. Database Interaction Analysis
+      const databaseInteractions = analyzeDatabaseInteractions(loadedFiles);
+
+      // 9. Dependency & Import Graph
+      const dependencies = analyzeDependencies(fileImports, repository.fileList, parsedManifests);
+      const circularDependencies = findCircularDependencies(dependencies.internalImports);
+      dependencies.circularDependencies = circularDependencies;
+
+      const relationshipGraph = buildRelationshipGraph(repository.fileList, dependencies.internalImports, symbols);
+
+      // 10. Metrics Computation
+      let totalLOC = 0;
+      for (const f of loadedFiles) {
+        totalLOC += f.lineCount || 0;
+      }
+
+      const uniqueDbModels = new Set(databaseInteractions.map((db) => db.modelName));
+
+      analysis.metrics = {
+        totalFilesAnalyzed: loadedFiles.length,
+        totalLOC,
+        symbolsCount: symbols.length,
+        apiEndpointsCount: apiEndpoints.length,
+        databaseModelsCount: uniqueDbModels.size,
+        relationshipsCount: dependencies.internalImports.length,
+      };
+
+      analysis.languages = languages;
+      analysis.frameworks = frameworks;
+      analysis.entryPoints = entryPoints;
+      analysis.symbols = symbols;
+      analysis.dependencies = dependencies;
+      analysis.apiEndpoints = apiEndpoints;
+      analysis.databaseInteractions = databaseInteractions;
+      analysis.relationshipGraph = relationshipGraph;
+      analysis.warnings = warnings;
+
+      analysis.status = 'completed';
+      analysis.completedAt = new Date();
+
+      await analysis.save();
+
+      // Mark any existing onboarding guide for this repository as stale
+      try {
+        await OnboardingGuide.updateOne({ repositoryId }, { $set: { isStale: true } });
+      } catch {
+        // Non-fatal if guide update fails
+      }
+
+      console.info(
+        `[CodeIntelligence] Analysis completed for repository "${repository.name}" (${symbols.length} symbols, ${apiEndpoints.length} endpoints, ${frameworks.length} frameworks).`
+      );
+
+      return analysis;
+    } catch (err) {
+      console.error(`[CodeIntelligence] Analysis failed for repository "${repository.name}":`, err.message);
+      analysis.status = 'failed';
+      analysis.errorMessage = err.message;
+      analysis.completedAt = new Date();
+      await analysis.save();
+      throw err;
     }
+  })();
 
-    console.info(
-      `[CodeIntelligence] Analysis completed for repository "${repository.name}" (${symbols.length} symbols, ${apiEndpoints.length} endpoints, ${frameworks.length} frameworks).`
-    );
-
-    return analysis;
-  } catch (err) {
-    console.error(`[CodeIntelligence] Analysis failed for repository "${repository.name}":`, err.message);
-    analysis.status = 'failed';
-    analysis.errorMessage = err.message;
-    analysis.completedAt = new Date();
-    await analysis.save();
-    throw err;
+  inFlightAnalyses.set(idStr, analysisPromise);
+  try {
+    return await analysisPromise;
+  } finally {
+    inFlightAnalyses.delete(idStr);
   }
 };

@@ -909,7 +909,7 @@ export const generateOnboardingGuide = async (repositoryId, { forceRegenerate = 
 
   const startTime = Date.now();
   let validatedData;
-  let modelUsed = 'gemini-3.5-flash';
+  let modelUsed = 'gemini-3.8-flash';
 
   // 2. Invoke Gemini if configured, or report clear configuration error
   if (!geminiService.isConfigured()) {

@@ -4,8 +4,6 @@ import {
   VscFileCode,
   VscLinkExternal,
   VscCheck,
-  VscInfo,
-  VscHubot,
   VscSparkle,
   VscArrowRight,
   VscDatabase,
@@ -35,7 +33,7 @@ export default function GraphDetailsPanel({
   const handleAskAi = () => {
     if (!onAskAiAboutComponent) return;
 
-    let question = '';
+    let question;
     if (isEdge) {
       question = `How is the relationship between \`${data.sourceFile || selectedItem.source}\` and \`${data.targetFile || selectedItem.target}\` implemented?`;
     } else if (data.apiPath) {

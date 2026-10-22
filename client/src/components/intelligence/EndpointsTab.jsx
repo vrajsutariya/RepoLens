@@ -26,11 +26,15 @@ export default function EndpointsTab({ endpoints = [], onNavigateToFile }) {
     return endpoints.filter((ep) => {
       const matchesMethod = selectedMethod === 'ALL' || ep.method === selectedMethod;
       const q = searchQuery.toLowerCase().trim();
+      const pathStr = (ep?.path || '').toLowerCase();
+      const fileStr = (ep?.file || '').toLowerCase();
+      const handlerStr = (ep?.handlerName || '').toLowerCase();
+
       const matchesQuery =
         !q ||
-        ep.path.toLowerCase().includes(q) ||
-        ep.file.toLowerCase().includes(q) ||
-        (ep.handlerName && ep.handlerName.toLowerCase().includes(q));
+        pathStr.includes(q) ||
+        fileStr.includes(q) ||
+        handlerStr.includes(q);
 
       return matchesMethod && matchesQuery;
     });
@@ -97,7 +101,7 @@ export default function EndpointsTab({ endpoints = [], onNavigateToFile }) {
               <div
                 key={`${ep.method}-${ep.path}-${ep.file}-${idx}`}
                 className="p-3 rounded d-flex flex-wrap align-items-center justify-content-between gap-3 border border-repolens"
-                style={{ backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}
+                style={{ backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-sm)' }}
               >
                 <div className="d-flex align-items-center gap-3 overflow-hidden">
                   <span

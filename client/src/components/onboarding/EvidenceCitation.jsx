@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VscChevronDown, VscChevronRight, VscFileCode, VscCode } from 'react-icons/vsc';
+import { VscChevronDown, VscChevronRight, VscFileCode } from 'react-icons/vsc';
 
 export default function EvidenceCitation({
   evidence = [],

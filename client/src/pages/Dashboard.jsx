@@ -1,17 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Sidebar from '../components/Sidebar';
 import DashboardHeader from '../components/DashboardHeader';
 import RepositoryImportPanel from '../components/RepositoryImportPanel';
 import RepositoryResultsView from '../components/RepositoryResultsView';
+import DeleteRepositoryModal from '../components/DeleteRepositoryModal';
 import {
   getRepositories,
   getRepositoryById,
   uploadRepositoryZip,
   importGitRepository,
+  deleteRepository,
 } from '../services/api';
 
 export default function Dashboard({ backendStatus }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const repoParam = searchParams.get('repo');
+
   const [repositories, setRepositories] = useState([]);
   const [activeRepoId, setActiveRepoId] = useState(null);
   const [activeRepository, setActiveRepository] = useState(null);
@@ -21,6 +27,23 @@ export default function Dashboard({ backendStatus }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStage, setProcessingStage] = useState(0);
   const [ingestionError, setIngestionError] = useState(null);
+
+  // Deletion modal state
+  const [repoToDelete, setRepoToDelete] = useState(null);
+  const [isDeletingRepo, setIsDeletingRepo] = useState(false);
+
+  // Load a specific repository by ID
+  const handleSelectRepository = useCallback(async (repoId) => {
+    setActiveRepoId(repoId);
+    setIngestionError(null);
+    setSearchParams({ repo: repoId }, { replace: true });
+    try {
+      const response = await getRepositoryById(repoId);
+      setActiveRepository(response.data || response);
+    } catch (err) {
+      toast.error(err?.error?.message || 'Failed to load repository details.');
+    }
+  }, [setSearchParams]);
 
   // Fetch repository list on mount
   useEffect(() => {
@@ -43,24 +66,38 @@ export default function Dashboard({ backendStatus }) {
     };
   }, []);
 
+  // Restore active repository from URL parameter on mount/refresh
+  useEffect(() => {
+    if (!repoParam || repoParam === activeRepoId) return;
+
+    let isMounted = true;
+    const fetchRepo = async () => {
+      try {
+        const response = await getRepositoryById(repoParam);
+        if (isMounted) {
+          setActiveRepoId(repoParam);
+          setActiveRepository(response.data || response);
+        }
+      } catch (err) {
+        if (isMounted) {
+          toast.error(err?.error?.message || 'Failed to load repository details.');
+        }
+      }
+    };
+
+    fetchRepo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [repoParam, activeRepoId]);
+
   const refreshRepositories = async () => {
     try {
       const response = await getRepositories();
       setRepositories(response.data || []);
     } catch {
       // Backend error
-    }
-  };
-
-  // Load a specific repository by ID
-  const handleSelectRepository = async (repoId) => {
-    setActiveRepoId(repoId);
-    setIngestionError(null);
-    try {
-      const response = await getRepositoryById(repoId);
-      setActiveRepository(response.data || response);
-    } catch (err) {
-      toast.error(err?.error?.message || 'Failed to load repository details.');
     }
   };
 
@@ -92,6 +129,7 @@ export default function Dashboard({ backendStatus }) {
 
       setActiveRepoId(repo._id);
       setActiveRepository(repo);
+      setSearchParams({ repo: repo._id }, { replace: true });
       await refreshRepositories();
     } catch (err) {
       clearInterval(stageInterval);
@@ -126,6 +164,7 @@ export default function Dashboard({ backendStatus }) {
 
       setActiveRepoId(repo._id);
       setActiveRepository(repo);
+      setSearchParams({ repo: repo._id }, { replace: true });
       await refreshRepositories();
     } catch (err) {
       clearInterval(stageInterval);
@@ -142,6 +181,34 @@ export default function Dashboard({ backendStatus }) {
     setActiveRepoId(null);
     setActiveRepository(null);
     setIngestionError(null);
+    setSearchParams({}, { replace: true });
+  };
+
+  // Permanently delete repository workflow
+  const handleConfirmDelete = async () => {
+    if (!repoToDelete || isDeletingRepo) return;
+    setIsDeletingRepo(true);
+    try {
+      await deleteRepository(repoToDelete._id);
+      toast.success(`Repository "${repoToDelete.name}" deleted successfully.`);
+
+      // Update repositories list in state
+      setRepositories((prev) => prev.filter((r) => r._id !== repoToDelete._id));
+
+      // If the currently viewed repository was deleted, navigate back to import view
+      if (activeRepoId === repoToDelete._id) {
+        setActiveRepoId(null);
+        setActiveRepository(null);
+        setSearchParams({}, { replace: true });
+      }
+
+      setRepoToDelete(null);
+    } catch (err) {
+      const msg = err?.error?.message || err?.message || 'Failed to delete repository.';
+      toast.error(msg);
+    } finally {
+      setIsDeletingRepo(false);
+    }
   };
 
   return (
@@ -152,6 +219,7 @@ export default function Dashboard({ backendStatus }) {
         activeRepoId={activeRepoId}
         onSelectRepo={handleSelectRepository}
         onNewIngestion={handleBackToImport}
+        onRequestDelete={(repo) => setRepoToDelete(repo)}
         backendStatus={backendStatus}
       />
 
@@ -162,10 +230,11 @@ export default function Dashboard({ backendStatus }) {
           <RepositoryResultsView
             repository={activeRepository}
             onBackToImport={handleBackToImport}
+            onRequestDelete={(repo) => setRepoToDelete(repo)}
           />
         ) : (
           /* Repository Ingestion Dashboard */
-          <div className="d-flex flex-column flex-grow-1 justify-content-center">
+          <div className="d-flex flex-column justify-content-center">
             <DashboardHeader
               onAnalyzeClick={() => {
                 const el = document.getElementById('gitUrlInput') || document.querySelector('.dropzone');
@@ -186,6 +255,19 @@ export default function Dashboard({ backendStatus }) {
           </div>
         )}
       </main>
+
+      {/* Accessible Repository Deletion Confirmation Modal */}
+      <DeleteRepositoryModal
+        isOpen={Boolean(repoToDelete)}
+        repository={repoToDelete}
+        isDeleting={isDeletingRepo}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!isDeletingRepo) {
+            setRepoToDelete(null);
+          }
+        }}
+      />
     </div>
   );
 }

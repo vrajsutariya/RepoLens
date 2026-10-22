@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 import {
   VscBook,
@@ -11,8 +10,6 @@ import {
   VscRefresh,
   VscWarning,
   VscGraph,
-  VscHubot,
-  VscFiles,
   VscLinkExternal,
   VscShield,
   VscInfo,
@@ -67,7 +64,7 @@ export default function OnboardingDashboard({
             setIsStale(false);
           }
         }
-      } catch (err) {
+      } catch {
         if (isCurrent) {
           setGuide(null);
           setHasGuide(false);
@@ -88,6 +85,11 @@ export default function OnboardingDashboard({
 
   const handleGenerate = async () => {
     if (!repository?._id || isGenerating) return;
+
+    if (analysis && analysis.status !== 'completed') {
+      toast.error('Repository code intelligence analysis is still in progress. Please wait for it to complete.');
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     try {
@@ -98,7 +100,7 @@ export default function OnboardingDashboard({
       setIsStale(false);
       toast.success('Repository onboarding guide generated successfully!');
     } catch (err) {
-      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to generate onboarding guide.';
+      const msg = err?.error?.message || err?.message || 'Failed to generate onboarding guide.';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -118,7 +120,7 @@ export default function OnboardingDashboard({
       setIsStale(false);
       toast.success('Onboarding guide regenerated with latest analysis!');
     } catch (err) {
-      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to regenerate onboarding guide.';
+      const msg = err?.error?.message || err?.message || 'Failed to regenerate onboarding guide.';
       setError(msg);
       toast.error(msg);
     } finally {

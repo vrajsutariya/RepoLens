@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 import {
@@ -15,6 +15,9 @@ import {
   VscSparkle,
   VscGraph,
   VscBook,
+  VscTrash,
+  VscChevronLeft,
+  VscChevronRight,
 } from 'react-icons/vsc';
 import FileExplorer from './FileExplorer';
 import FileViewer from './FileViewer';
@@ -33,10 +36,64 @@ import {
   triggerRepositoryAnalysis,
 } from '../services/api';
 
-export default function RepositoryResultsView({ repository, onBackToImport }) {
+export default function RepositoryResultsView({ repository, onBackToImport, onRequestDelete }) {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'files' | 'symbols' | 'dependencies' | 'endpoints' | 'database' | 'context'
+  const [initialGraphType, setInitialGraphType] = useState('modules');
   const [analysis, setAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Horizontal scroll state & controls for workspace navigation tabs
+  const tabsContainerRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [showScrollControls, setShowScrollControls] = useState(false);
+
+  const checkTabScrollability = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth + 2;
+    setShowScrollControls(hasOverflow);
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    checkTabScrollability();
+    const handleResize = () => checkTabScrollability();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [checkTabScrollability]);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const activeBtn = el.querySelector(`[data-tab-id="${activeTab}"]`);
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+    checkTabScrollability();
+  }, [activeTab, checkTabScrollability]);
+
+  // Support horizontal wheel scrolling when hovered over tabs
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+        checkTabScrollability();
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [checkTabScrollability]);
+
+  const handleScrollTabs = (delta) => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: delta, behavior: 'smooth' });
+    }
+  };
 
   // File explorer & code viewer state
   const [selectedFilePath, setSelectedFilePath] = useState(() => {
@@ -62,27 +119,73 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
   const [highlightRange, setHighlightRange] = useState(null);
   const [aiQuestionPrompt, setAiQuestionPrompt] = useState(null);
 
-  // 1. Fetch analysis data on mount
+  // 1. Fetch analysis data on mount & poll if in-progress
   useEffect(() => {
     if (!repository?._id) return;
 
     let isCurrent = true;
+    let pollInterval = null;
+
+    const pollAnalysis = () => {
+      if (pollInterval) return;
+      pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await getRepositoryAnalysis(repository._id);
+          const data = pollRes.data || pollRes;
+          if (!isCurrent) return;
+
+          if (data && data.status !== 'processing') {
+            setAnalysis(data);
+            setIsAnalyzing(false);
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+        } catch {
+          if (isCurrent) {
+            setIsAnalyzing(false);
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+        }
+      }, 1500);
+    };
 
     const loadAnalysis = async () => {
       try {
         const response = await getRepositoryAnalysis(repository._id);
-        if (isCurrent) {
-          setAnalysis(response.data || response);
+        if (!isCurrent) return;
+        const data = response.data || response;
+        setAnalysis(data);
+
+        if (data.status === 'processing') {
+          setIsAnalyzing(true);
+          pollAnalysis();
+        } else {
+          setIsAnalyzing(false);
         }
       } catch {
-        // If analysis doesn't exist yet, trigger it automatically
+        // If analysis record doesn't exist yet, trigger it automatically
+        if (!isCurrent) return;
+        setIsAnalyzing(true);
         try {
           const runRes = await triggerRepositoryAnalysis(repository._id);
-          if (isCurrent) {
-            setAnalysis(runRes.data || runRes);
+          if (!isCurrent) return;
+          const data = runRes.data || runRes;
+          setAnalysis(data);
+
+          if (data.status === 'processing') {
+            pollAnalysis();
+          } else {
+            setIsAnalyzing(false);
           }
-        } catch {
-          // Analysis failed
+        } catch (err) {
+          if (isCurrent) {
+            setIsAnalyzing(false);
+            setAnalysis({
+              status: 'failed',
+              errorMessage: err?.error?.message || err?.message || 'Failed to start repository analysis.',
+            });
+          }
         }
       }
     };
@@ -91,6 +194,7 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
 
     return () => {
       isCurrent = false;
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [repository?._id]);
 
@@ -130,12 +234,36 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
     setIsAnalyzing(true);
     try {
       const response = await triggerRepositoryAnalysis(repository._id);
-      setAnalysis(response.data || response);
-      toast.success('Code Intelligence analysis updated!');
+      const data = response.data || response;
+      setAnalysis(data);
+
+      if (data.status === 'processing') {
+        const interval = setInterval(async () => {
+          try {
+            const check = await getRepositoryAnalysis(repository._id);
+            const checkData = check.data || check;
+            if (checkData.status !== 'processing') {
+              setAnalysis(checkData);
+              setIsAnalyzing(false);
+              clearInterval(interval);
+              if (checkData.status === 'completed') {
+                toast.success('Code Intelligence analysis updated!');
+              } else if (checkData.status === 'failed') {
+                toast.error(checkData.errorMessage || 'Analysis failed.');
+              }
+            }
+          } catch {
+            setIsAnalyzing(false);
+            clearInterval(interval);
+          }
+        }, 1500);
+      } else {
+        setIsAnalyzing(false);
+        toast.success('Code Intelligence analysis updated!');
+      }
     } catch (err) {
-      toast.error(err?.error?.message || 'Failed to analyze repository.');
-    } finally {
       setIsAnalyzing(false);
+      toast.error(err?.error?.message || 'Failed to analyze repository.');
     }
   };
 
@@ -154,6 +282,7 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
 
   // Open Architecture Graph with an optional recommended type
   const handleNavigateToGraph = (type = 'modules') => {
+    setInitialGraphType(type);
     setActiveTab('graphs');
   };
 
@@ -258,51 +387,146 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
               ))}
             </div>
           )}
+
+          {/* Delete Repository Action */}
+          {onRequestDelete && (
+            <button
+              type="button"
+              onClick={() => onRequestDelete(repository)}
+              className="btn btn-sm btn-repolens-outline py-1 px-2 text-danger d-flex align-items-center gap-1 flex-shrink-0"
+              style={{
+                borderColor: 'rgba(239, 68, 68, 0.4)',
+                fontSize: '0.75rem',
+              }}
+              title={`Delete repository "${repository.name}"`}
+              aria-label={`Delete repository ${repository.name}`}
+            >
+              <VscTrash size={14} />
+              <span>Delete Repo</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Intelligence Workspace Navigation Tabs */}
-      <div className="d-flex align-items-center gap-1 border-bottom border-repolens bg-repolens-surface px-2 mb-2 flex-shrink-0">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`btn border-0 py-2 px-3 small fw-medium d-flex align-items-center gap-2 position-relative ${
-                isActive ? 'text-white' : 'text-repolens-secondary'
-              }`}
-              style={{
-                backgroundColor: 'transparent',
-                fontSize: '0.825rem',
-                transition: 'color var(--transition-fast)',
-              }}
-            >
-              <span style={{ color: isActive ? 'var(--color-primary)' : 'inherit' }}>{tab.icon}</span>
-              <span>{tab.label}</span>
-              {typeof tab.count === 'number' && (
-                <span
-                  className="badge rounded-pill"
-                  style={{
-                    backgroundColor: isActive ? 'rgba(240, 80, 51, 0.2)' : 'var(--color-border)',
-                    color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                    fontSize: '0.65rem',
-                  }}
-                >
-                  {tab.count}
-                </span>
-              )}
-              {isActive && (
-                <motion.div
-                  layoutId="activeWorkspaceTab"
-                  className="position-absolute bottom-0 start-0 w-100"
-                  style={{ height: '2px', backgroundColor: 'var(--color-primary)' }}
-                />
-              )}
-            </button>
-          );
-        })}
+      {/* Intelligence Workspace Navigation Tabs with Overflow Scroll Controls */}
+      <div
+        className="position-relative d-flex align-items-center border-bottom border-repolens bg-repolens-surface mb-2 flex-shrink-0 w-100"
+        style={{ minWidth: 0 }}
+      >
+        {/* Left Scroll Button */}
+        {showScrollControls && canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => handleScrollTabs(-200)}
+            className="btn btn-sm position-absolute start-0 z-3 d-flex align-items-center justify-content-center p-0 border-0"
+            style={{
+              width: '28px',
+              height: '36px',
+              backgroundColor: 'rgba(23, 23, 25, 0.95)',
+              color: 'var(--color-primary)',
+              boxShadow: '4px 0 8px rgba(0, 0, 0, 0.6)',
+              borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+            }}
+            title="Scroll tabs left"
+            aria-label="Scroll tabs left"
+          >
+            <VscChevronLeft size={18} />
+          </button>
+        )}
+
+        {/* Scrollable Tabs Row */}
+        <div
+          ref={tabsContainerRef}
+          onScroll={checkTabScrollability}
+          className="d-flex align-items-center gap-1 px-2 flex-nowrap overflow-x-auto w-100 repolens-scroll-tabs"
+          style={{
+            scrollBehavior: 'smooth',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+            minWidth: 0,
+            paddingLeft: canScrollLeft ? '32px' : '8px',
+            paddingRight: canScrollRight ? '32px' : '8px',
+            transition: 'padding var(--transition-fast)',
+          }}
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                data-tab-id={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`btn border-0 py-2 px-3 small fw-medium d-flex align-items-center gap-2 position-relative flex-shrink-0 ${
+                  isActive ? 'text-white' : 'text-repolens-secondary'
+                }`}
+                style={{
+                  backgroundColor: 'transparent',
+                  fontSize: '0.825rem',
+                  whiteSpace: 'nowrap',
+                  transition: 'color var(--transition-fast)',
+                }}
+              >
+                <span style={{ color: isActive ? 'var(--color-primary)' : 'inherit' }}>{tab.icon}</span>
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && (
+                  <span
+                    className="badge rounded-pill"
+                    style={{
+                      backgroundColor: isActive ? 'rgba(240, 80, 51, 0.2)' : 'var(--color-border)',
+                      color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                      fontSize: '0.65rem',
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+                {tab.highlight && (
+                  <span
+                    className="badge rounded-pill"
+                    style={{
+                      backgroundColor: 'rgba(240, 80, 51, 0.2)',
+                      color: 'var(--color-primary)',
+                      fontSize: '0.65rem',
+                      border: '1px solid rgba(240, 80, 51, 0.4)',
+                    }}
+                  >
+                    AI Guide
+                  </span>
+                )}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeWorkspaceTab"
+                    className="position-absolute bottom-0 start-0 w-100"
+                    style={{ height: '2px', backgroundColor: 'var(--color-primary)' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Scroll Button */}
+        {showScrollControls && canScrollRight && (
+          <button
+            type="button"
+            onClick={() => handleScrollTabs(200)}
+            className="btn btn-sm position-absolute end-0 z-3 d-flex align-items-center justify-content-center p-0 border-0"
+            style={{
+              width: '28px',
+              height: '36px',
+              backgroundColor: 'rgba(23, 23, 25, 0.95)',
+              color: 'var(--color-primary)',
+              boxShadow: '-4px 0 8px rgba(0, 0, 0, 0.6)',
+              borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)',
+            }}
+            title="Scroll tabs right"
+            aria-label="Scroll tabs right"
+          >
+            <VscChevronRight size={18} />
+          </button>
+        )}
       </div>
 
       {/* Active Tab Content Area */}
@@ -369,6 +593,7 @@ export default function RepositoryResultsView({ repository, onBackToImport }) {
                 onNavigateToFile={handleNavigateToFile}
                 onAskAiAboutComponent={handleAskAiAboutComponent}
                 analysisStatus={analysis?.status}
+                initialGraphType={initialGraphType}
               />
             </motion.div>
           )}

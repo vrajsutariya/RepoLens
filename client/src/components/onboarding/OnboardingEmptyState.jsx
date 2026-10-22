@@ -48,7 +48,10 @@ export default function OnboardingEmptyState({
   ];
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
       className="p-4 p-md-5 rounded border text-center shadow-sm"
       style={{
         backgroundColor: 'var(--color-surface)',
@@ -135,6 +138,6 @@ export default function OnboardingEmptyState({
       <div className="text-repolens-secondary small mt-3" style={{ fontSize: '0.75rem' }}>
         RepoLens never runs repository code. Guides are generated via static analysis and verified disk excerpts.
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -10,9 +10,8 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { motion, AnimatePresence } from 'motion/react';
-import toast from 'react-hot-toast';
-import { VscLoading, VscLayers, VscWarning } from 'react-icons/vsc';
+import { AnimatePresence } from 'motion/react';
+import { VscLoading, VscLayers, VscWarning, VscInfo } from 'react-icons/vsc';
 
 import CustomGraphNode from './CustomGraphNode';
 import GraphToolbar from './GraphToolbar';
@@ -29,8 +28,17 @@ function FlowCanvas({
   onNavigateToFile,
   onAskAiAboutComponent,
   analysisStatus,
+  initialGraphType = 'modules',
 }) {
-  const [activeGraphType, setActiveGraphType] = useState('modules'); // 'modules' | 'api-flow' | 'call-graph' | 'database'
+  const [userGraphType, setUserGraphType] = useState(null);
+  const [prevInitial, setPrevInitial] = useState(initialGraphType);
+
+  if (prevInitial !== initialGraphType) {
+    setPrevInitial(initialGraphType);
+    setUserGraphType(null);
+  }
+
+  const activeGraphType = userGraphType || initialGraphType || 'modules';
   const [graphData, setGraphData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -177,7 +185,7 @@ function FlowCanvas({
       {/* Top Interactive Toolbar */}
       <GraphToolbar
         activeGraphType={activeGraphType}
-        onChangeGraphType={(type) => setActiveGraphType(type)}
+        onChangeGraphType={(type) => setUserGraphType(type)}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         filterCategory={filterCategory}
@@ -188,6 +196,24 @@ function FlowCanvas({
         onToggleMiniMap={() => setShowMiniMap(!showMiniMap)}
         metadata={graphData?.metadata}
       />
+
+      {/* Analysis Status Notice Bar */}
+      {analysisStatus && analysisStatus !== 'completed' && (
+        <div
+          className="p-1 px-3 d-flex align-items-center gap-2 border-bottom text-truncate"
+          style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            borderColor: 'rgba(59, 130, 246, 0.2)',
+            fontSize: '0.72rem',
+            color: '#60a5fa',
+          }}
+        >
+          <VscInfo size={13} className="flex-shrink-0" />
+          <span className="text-truncate">
+            Static code analysis is currently {analysisStatus}. Graph nodes and relationships will expand automatically once analysis completes.
+          </span>
+        </div>
+      )}
 
       {/* Limitations Notice Bar if any */}
       {graphData?.metadata?.limitations?.length > 0 && (

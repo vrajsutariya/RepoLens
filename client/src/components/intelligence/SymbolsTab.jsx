@@ -33,11 +33,15 @@ export default function SymbolsTab({ symbols = [], onNavigateToFile }) {
         sym.type === selectedType;
 
       const q = searchQuery.toLowerCase().trim();
+      const name = (sym?.name || '').toLowerCase();
+      const file = (sym?.file || '').toLowerCase();
+      const parent = (sym?.parentClass || '').toLowerCase();
+
       const matchesQuery =
         !q ||
-        sym.name.toLowerCase().includes(q) ||
-        sym.file.toLowerCase().includes(q) ||
-        (sym.parentClass && sym.parentClass.toLowerCase().includes(q));
+        name.includes(q) ||
+        file.includes(q) ||
+        parent.includes(q);
 
       return matchesType && matchesQuery;
     });
@@ -102,7 +106,7 @@ export default function SymbolsTab({ symbols = [], onNavigateToFile }) {
               key={`${sym.file}-${sym.name}-${idx}`}
               className="p-2 px-3 rounded d-flex align-items-center justify-content-between gap-3 border border-repolens"
               style={{
-                backgroundColor: 'var(--color-bg)',
+                backgroundColor: 'var(--color-background)',
                 borderRadius: 'var(--radius-sm)',
                 transition: 'background-color var(--transition-fast)',
               }}

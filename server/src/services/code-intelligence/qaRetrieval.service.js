@@ -5,10 +5,10 @@ import { assertSafePath } from '../../utils/pathSafety.js';
 
 // Configuration limits for context budget
 export const RETRIEVAL_LIMITS = {
-  MAX_FILES: 8,
-  MAX_SNIPPETS: 10,
-  MAX_CONTEXT_CHARS: 20000,
-  MAX_SNIPPET_LINES: 60,
+  MAX_FILES: 5,
+  MAX_SNIPPETS: 6,
+  MAX_CONTEXT_CHARS: 12000,
+  MAX_SNIPPET_LINES: 45,
   CONTEXT_PADDING_LINES: 2,
 };
 
@@ -151,16 +151,23 @@ export const extractSafeSnippet = async (
   relativeFilePath,
   targetStartLine = 1,
   targetEndLine = 1,
-  padding = RETRIEVAL_LIMITS.CONTEXT_PADDING_LINES
+  padding = RETRIEVAL_LIMITS.CONTEXT_PADDING_LINES,
+  fileCache = null
 ) => {
   try {
     const safePath = assertSafePath(extractedDir, relativeFilePath);
     if (!fs.existsSync(safePath)) return null;
 
-    const stats = await fs.promises.stat(safePath);
-    if (stats.isDirectory() || stats.size > 1024 * 1024) return null; // Skip files > 1MB
+    let rawContent;
+    if (fileCache && fileCache.has(safePath)) {
+      rawContent = fileCache.get(safePath);
+    } else {
+      const stats = await fs.promises.stat(safePath);
+      if (stats.isDirectory() || stats.size > 1024 * 1024) return null; // Skip files > 1MB
+      rawContent = await fs.promises.readFile(safePath, 'utf8');
+      if (fileCache) fileCache.set(safePath, rawContent);
+    }
 
-    const rawContent = await fs.promises.readFile(safePath, 'utf8');
     const lines = rawContent.split(/\r?\n/);
     const totalLines = lines.length;
 
@@ -525,6 +532,7 @@ export const retrieveCodeEvidence = async (repository, analysis, question) => {
 
   // 8. Extract authoritatively bounded snippets from actual files on disk
   const evidence = [];
+  const fileCache = new Map();
   let totalContextChars = 0;
   let evidenceCounter = 1;
 
@@ -533,7 +541,9 @@ export const retrieveCodeEvidence = async (repository, analysis, question) => {
       extractedDir,
       item.filePath,
       item.startLine,
-      item.endLine
+      item.endLine,
+      RETRIEVAL_LIMITS.CONTEXT_PADDING_LINES,
+      fileCache
     );
 
     if (snippetResult && snippetResult.snippet.trim().length > 0) {

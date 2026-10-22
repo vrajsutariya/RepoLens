@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 import {
   VscHubot,
   VscSend,
   VscLoading,
   VscLightbulb,
-  VscCheck,
   VscInfo,
   VscWarning,
   VscFileCode,
@@ -54,6 +53,16 @@ export default function AiAssistantTab({
 
   const historyEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  // Clean up any pending in-flight request when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // 1. Fetch dynamic suggested questions on mount
   useEffect(() => {
@@ -103,6 +112,15 @@ export default function AiAssistantTab({
     }));
   };
 
+  const handleCancelQuestion = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsAsking(false);
+    toast('Question cancelled by user.', { icon: '⏹️' });
+  };
+
   // Submit Question Handler
   const handleSubmitQuestion = async (questionText = question) => {
     const q = (questionText || '').trim();
@@ -122,12 +140,17 @@ export default function AiAssistantTab({
     setAskingStage(0);
     setQuestion('');
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     // Stage timer simulations for clear progress feedback
     const timer1 = setTimeout(() => setAskingStage(1), 600);
     const timer2 = setTimeout(() => setAskingStage(2), 1500);
 
     try {
-      const response = await askRepositoryQuestion(repositoryId, q);
+      const response = await askRepositoryQuestion(repositoryId, q, {
+        signal: abortController.signal,
+      });
       const data = response.data || response;
 
       // Automatically expand top evidence items by default
@@ -150,25 +173,47 @@ export default function AiAssistantTab({
         },
       ]);
     } catch (err) {
-      const errorMessage =
-        err?.error?.message || err?.message || 'Failed to generate answer from repository evidence.';
+      const isCanceled =
+        err?.name === 'CanceledError' ||
+        err?.code === 'ERR_CANCELED' ||
+        err?.message?.includes('canceled') ||
+        err?.message?.includes('aborted');
 
-      setHistory((prev) => [
-        ...prev,
-        {
-          id: `qa_${Date.now()}`,
-          question: q,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          answerData: null,
-          error: errorMessage,
-          statusCode: err?.error?.status || 500,
-        },
-      ]);
+      if (isCanceled) {
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: `qa_${Date.now()}`,
+            question: q,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            answerData: null,
+            error: 'Question request was stopped by user.',
+            statusCode: 499,
+          },
+        ]);
+      } else {
+        const errorMessage =
+          err?.error?.message || err?.message || 'Failed to generate answer from repository evidence.';
 
-      toast.error(errorMessage);
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: `qa_${Date.now()}`,
+            question: q,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            answerData: null,
+            error: errorMessage,
+            statusCode: err?.error?.status || 500,
+            suggestedFaqs: err?.error?.suggestedFaqs || [],
+          },
+        ]);
+
+        toast.error(errorMessage);
+      }
     } finally {
       clearTimeout(timer1);
       clearTimeout(timer2);
+      abortControllerRef.current = null;
       setIsAsking(false);
       setAskingStage(0);
     }
@@ -206,6 +251,11 @@ export default function AiAssistantTab({
               <span className="repolens-badge" style={{ fontSize: '0.65rem' }}>
                 Evidence-Grounded RAG
               </span>
+              {analysisStatus && analysisStatus !== 'completed' && (
+                <span className="badge bg-warning-subtle text-warning border border-warning-subtle" style={{ fontSize: '0.65rem' }}>
+                  Analysis: {analysisStatus}
+                </span>
+              )}
             </div>
             <p className="text-repolens-secondary small mb-0" style={{ fontSize: '0.75rem' }}>
               Ask architectural questions verified against actual repository files and static code intelligence.
@@ -250,11 +300,19 @@ export default function AiAssistantTab({
             </p>
 
             {/* Suggested Question Chips */}
-            {suggestedQuestions.length > 0 && (
+            {(suggestedQuestions.length > 0 || loadingSuggestions) && (
               <div className="w-100" style={{ maxWidth: '640px' }}>
-                <span className="text-repolens-secondary small fw-medium mb-2 d-block text-start">
-                  Suggested questions for this codebase:
-                </span>
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <span className="text-repolens-secondary small fw-medium d-block text-start">
+                    Suggested questions for this codebase:
+                  </span>
+                  {loadingSuggestions && (
+                    <span className="text-repolens-secondary small d-flex align-items-center gap-1" style={{ fontSize: '0.7rem' }}>
+                      <VscLoading className="spin" size={12} style={{ color: 'var(--color-primary)' }} />
+                      <span>Generating suggestions...</span>
+                    </span>
+                  )}
+                </div>
                 <div className="d-flex flex-column gap-2">
                   {suggestedQuestions.map((sq, idx) => (
                     <button
@@ -284,6 +342,38 @@ export default function AiAssistantTab({
                       <span className="text-repolens-secondary small flex-shrink-0">&rarr;</span>
                     </button>
                   ))}
+                </div>
+
+                {/* Offline FAQ Quick Chips */}
+                <div className="mt-3 pt-3 border-top border-repolens text-start">
+                  <span className="text-repolens-secondary small fw-medium d-block mb-2" style={{ fontSize: '0.75rem' }}>
+                    Common platform questions (Available offline):
+                  </span>
+                  <div className="d-flex flex-wrap gap-2">
+                    {[
+                      'What is RepoLens?',
+                      'How does repository analysis work?',
+                      "Does RepoLens execute the uploaded repository's code?",
+                      'How do I explore file dependencies?',
+                      'How do I delete a repository?',
+                    ].map((faqQ, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSubmitQuestion(faqQ)}
+                        className="btn btn-sm text-start py-1 px-2 rounded border border-repolens d-flex align-items-center gap-1"
+                        style={{
+                          backgroundColor: 'rgba(23, 23, 25, 0.7)',
+                          color: 'var(--color-text-secondary)',
+                          fontSize: '0.75rem',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        <VscQuestion size={13} style={{ color: '#f59e0b' }} />
+                        <span>{faqQ}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -332,8 +422,30 @@ export default function AiAssistantTab({
                     style={{ backgroundColor: '#09090b', border: '1px solid var(--color-border)' }}
                   >
                     <code className="text-warning">
-                      Tip: Set GEMINI_API_KEY=your_key_here in server/.env to enable Gemini answers.
+                      Tip: Set GEMINI_API_KEY=your_key_here in server/.env to enable dynamic AI codebase answers.
                     </code>
+                  </div>
+                )}
+
+                {item.suggestedFaqs && item.suggestedFaqs.length > 0 && (
+                  <div className="mt-2 pt-2 border-top border-repolens">
+                    <span className="text-repolens-secondary small d-block mb-1" style={{ fontSize: '0.75rem' }}>
+                      Suggested FAQ Topics (Available Offline):
+                    </span>
+                    <div className="d-flex flex-wrap gap-1">
+                      {item.suggestedFaqs.map((faq) => (
+                        <button
+                          key={faq.id}
+                          type="button"
+                          onClick={() => handleSubmitQuestion(faq.question)}
+                          className="btn btn-sm btn-repolens-outline py-1 px-2 text-start d-flex align-items-center gap-1"
+                          style={{ fontSize: '0.75rem', borderRadius: 'var(--radius-sm)' }}
+                        >
+                          <VscQuestion size={12} style={{ color: 'var(--color-primary)' }} />
+                          <span>{faq.question}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -354,16 +466,40 @@ export default function AiAssistantTab({
                     <div
                       className="p-1 rounded d-flex align-items-center justify-content-center"
                       style={{
-                        backgroundColor: 'rgba(240, 80, 51, 0.15)',
-                        color: 'var(--color-primary)',
+                        backgroundColor: item.answerData.isFaqFallback
+                          ? 'rgba(245, 158, 11, 0.15)'
+                          : 'rgba(240, 80, 51, 0.15)',
+                        color: item.answerData.isFaqFallback ? '#f59e0b' : 'var(--color-primary)',
                       }}
                     >
-                      <VscHubot size={15} />
+                      {item.answerData.isFaqFallback ? <VscQuestion size={15} /> : <VscHubot size={15} />}
                     </div>
-                    <span className="fw-semibold text-white small">RepoLens AI</span>
-                    <span className="repolens-badge" style={{ fontSize: '0.65rem' }}>
-                      Verified Grounding
+                    <span className="fw-semibold text-white small">
+                      {item.answerData.isFaqFallback ? 'RepoLens FAQ' : 'RepoLens AI'}
                     </span>
+                    {item.answerData.isFaqFallback ? (
+                      <span
+                        className="badge rounded-pill d-flex align-items-center gap-1"
+                        style={{
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: '#f59e0b',
+                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                          fontSize: '0.65rem',
+                        }}
+                      >
+                        <VscQuestion size={11} />
+                        <span>FAQ Answer &middot; Offline Help</span>
+                      </span>
+                    ) : (
+                      <span className="repolens-badge" style={{ fontSize: '0.65rem' }}>
+                        Verified Grounding
+                      </span>
+                    )}
+                    {item.answerData.faqCategory && (
+                      <span className="code-badge" style={{ fontSize: '0.65rem' }}>
+                        {item.answerData.faqCategory}
+                      </span>
+                    )}
                   </div>
                   <span className="text-repolens-secondary small" style={{ fontSize: '0.7rem' }}>
                     {item.timestamp}
@@ -628,20 +764,32 @@ export default function AiAssistantTab({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded border border-repolens bg-repolens-surface d-flex align-items-center gap-3 shadow-sm align-self-start"
-            style={{ borderRadius: 'var(--radius-md)', maxWidth: '450px' }}
+            className="p-3 rounded border border-repolens bg-repolens-surface d-flex align-items-center justify-content-between gap-3 shadow-sm align-self-start"
+            style={{ borderRadius: 'var(--radius-md)', maxWidth: '480px', width: '100%' }}
           >
-            <VscLoading className="spin" size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-            <div className="d-flex flex-column">
-              <span className="text-white small fw-medium">
-                {askingStage === 0 && 'Analyzing question intent & extracting keywords...'}
-                {askingStage === 1 && 'Retrieving grounded code evidence & symbols...'}
-                {askingStage === 2 && 'Synthesizing evidence-based answer with Gemini...'}
-              </span>
-              <span className="text-repolens-secondary" style={{ fontSize: '0.7rem' }}>
-                Verifying source line citations against repository files
-              </span>
+            <div className="d-flex align-items-center gap-3 overflow-hidden">
+              <VscLoading className="spin" size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+              <div className="d-flex flex-column text-truncate">
+                <span className="text-white small fw-medium text-truncate">
+                  {askingStage === 0 && 'Analyzing question intent & extracting keywords...'}
+                  {askingStage === 1 && 'Retrieving grounded code evidence & symbols...'}
+                  {askingStage === 2 && 'Synthesizing evidence-based answer with Gemini...'}
+                </span>
+                <span className="text-repolens-secondary text-truncate" style={{ fontSize: '0.7rem' }}>
+                  Verifying source line citations against repository files
+                </span>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleCancelQuestion}
+              className="btn btn-sm btn-repolens-outline py-1 px-2 d-flex align-items-center gap-1 text-danger flex-shrink-0"
+              style={{ fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+              title="Stop generating answer"
+            >
+              <span>Stop</span>
+            </button>
           </motion.div>
         )}
 
@@ -678,22 +826,43 @@ export default function AiAssistantTab({
               }}
             />
 
-            <button
-              type="submit"
-              disabled={isAsking || !question.trim()}
-              className="btn btn-repolens-primary position-absolute d-flex align-items-center justify-content-center p-0"
-              style={{
-                right: '10px',
-                bottom: '10px',
-                width: '32px',
-                height: '32px',
-                borderRadius: 'var(--radius-sm)',
-                opacity: isAsking || !question.trim() ? 0.5 : 1,
-              }}
-              title="Submit question (Enter)"
-            >
-              {isAsking ? <VscLoading className="spin" size={16} /> : <VscSend size={16} />}
-            </button>
+            {isAsking ? (
+              <button
+                type="button"
+                onClick={handleCancelQuestion}
+                className="btn position-absolute d-flex align-items-center justify-content-center p-0"
+                style={{
+                  right: '10px',
+                  bottom: '10px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                  borderColor: 'rgba(239, 68, 68, 0.5)',
+                  color: '#ef4444',
+                }}
+                title="Stop generating answer"
+              >
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#ef4444', borderRadius: '2px' }} />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!question.trim()}
+                className="btn btn-repolens-primary position-absolute d-flex align-items-center justify-content-center p-0"
+                style={{
+                  right: '10px',
+                  bottom: '10px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: 'var(--radius-sm)',
+                  opacity: !question.trim() ? 0.5 : 1,
+                }}
+                title="Submit question (Enter)"
+              >
+                <VscSend size={16} />
+              </button>
+            )}
           </div>
 
           <div className="d-flex align-items-center justify-content-between px-1">

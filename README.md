@@ -2,7 +2,7 @@
 
 > **Track:** Code Intelligence  
 > **Theme:** Git-inspired Dark Orange-Red & Black  
-> **Status:** Stage 6: AI-Powered Repository Onboarding Guide & Setup Assistant Complete
+> **Status:** Stage 7: Final Integration, Quality Assurance, UI Polish & Hackathon Readiness Complete
 
 ---
 
@@ -165,7 +165,7 @@ NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb://127.0.0.1:27017/repolens
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.5-flash
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
 ### 3. Run Development Servers
@@ -196,10 +196,12 @@ npm test
 - `POST /api/repositories/upload` — Ingest a repository ZIP archive (multipart/form-data, max 25MB).
 - `POST /api/repositories/import` — Ingest a public Git repository (`{ "url": "https://github.com/owner/repo" }`).
 
-### Repository Inspection
+### Repository Inspection & Management
 
 - `GET /api/repositories` — List recent ingested repositories.
+- `GET /api/repositories/faq` — Retrieve predefined FAQ knowledge base entries for offline help and onboarding.
 - `GET /api/repositories/:id` — Retrieve repository metadata.
+- `DELETE /api/repositories/:id` — Permanently delete a repository, its analysis results, onboarding guides, and disk storage.
 - `GET /api/repositories/:id/tree` — Retrieve hierarchical file tree.
 - `GET /api/repositories/:id/files` — Retrieve flat file listing (supports `?query=` and `?language=`).
 - `GET /api/repositories/:id/file?path=...` — Retrieve safe text content with line numbers.
@@ -237,34 +239,39 @@ npm test
 
 ## 6. Implementation Status & Roadmap
 
-|    Phase    | Feature                                                                     |    Status     |
-| :---------: | :-------------------------------------------------------------------------- | :-----------: |
-| **Phase 1** | MERN Foundation, Design System, Health Checks                               | **Completed** |
-| **Phase 2** | Interactive UI, ZIP & Git Repository Ingestion                              | **Completed** |
-| **Phase 3** | **AST Symbol Extraction (@babel/parser)**                                   | **Completed** |
-|   Phase 3   | **Express API Route & Handler Detection**                                   | **Completed** |
-|   Phase 3   | **Database Schema, Model & Query Detection**                                | **Completed** |
-|   Phase 3   | **Import Dependency Graph & Cycle Detection**                               | **Completed** |
-|   Phase 3   | **Intelligence Dashboard (Overview, Symbols, Endpoints, Database)**         | **Completed** |
-|   Phase 3   | **Grounded Gemini AI Context Builder**                                      | **Completed** |
-| **Phase 4** | **Gemini-Powered Codebase Q&A Engine (`/ask`)**                             | **Completed** |
-|   Phase 4   | **Hybrid Retrieval without Vector DB (AST + Endpoints + Models + Imports)** | **Completed** |
-|   Phase 4   | **Authoritative Citation & Claim Validation Pipeline**                      | **Completed** |
-|   Phase 4   | **Distinction Between Verified Source Facts & Inferences**                  | **Completed** |
-|   Phase 4   | **Interactive Code Citation Viewer with Exact Line Highlighting**           | **Completed** |
-|   Phase 4   | **Feature-Grounded Suggested Questions Generator**                          | **Completed** |
-| **Phase 5** | **Interactive React Flow Graph Workspace (`@xyflow/react`)**                | **Completed** |
-|   Phase 5   | **Module Dependency Graph with Entry Points & Cycle Detection**             | **Completed** |
-|   Phase 5   | **API Request Flow Graph (Route -> Controller -> Database)**                | **Completed** |
-|   Phase 5   | **Function and Call Graph with AST Line Ranges**                            | **Completed** |
-|   Phase 5   | **Database Interaction Graph with CRUD Operation Mapping**                  | **Completed** |
-|   Phase 5   | **Bidirectional Deep-Linking to FileViewer & AiAssistantTab**               | **Completed** |
-| **Phase 6** | **AI-Powered Onboarding Guide Engine (`/onboarding`)**                      | **Completed** |
-|   Phase 6   | **Evidence Gathering (README, package.json scripts, .env templates)**       | **Completed** |
-|   Phase 6   | **Safe Setup Commands with Verification Badges & Warnings**                 | **Completed** |
-|   Phase 6   | **Environment Variable Checklist & Automatic Secret Redaction**             | **Completed** |
-|   Phase 6   | **Recommended Reading Order with File & Line Links**                        | **Completed** |
-|   Phase 6   | **End-to-End Request & Data Flow Tracing**                                  | **Completed** |
-|   Phase 6   | **Testing & Common Setup Troubleshooting Heuristics**                       | **Completed** |
-|   Phase 6   | **Guide Caching & Re-analysis Staleness Invalidation**                      | **Completed** |
-|   Phase 6   | **105 Automated Verification Tests Across 5 Suites**                        | **Completed** |
+|    Phase    | Feature                                                                      |    Status     |
+| :---------: | :--------------------------------------------------------------------------- | :-----------: |
+| **Phase 1** | MERN Foundation, Design System, Health Checks                                | **Completed** |
+| **Phase 2** | Interactive UI, ZIP & Git Repository Ingestion                               | **Completed** |
+| **Phase 3** | **AST Symbol Extraction (@babel/parser)**                                    | **Completed** |
+|   Phase 3   | **Express API Route & Handler Detection**                                    | **Completed** |
+|   Phase 3   | **Database Schema, Model & Query Detection**                                 | **Completed** |
+|   Phase 3   | **Import Dependency Graph & Cycle Detection**                                | **Completed** |
+|   Phase 3   | **Intelligence Dashboard (Overview, Symbols, Endpoints, Database)**          | **Completed** |
+|   Phase 3   | **Grounded Gemini AI Context Builder**                                       | **Completed** |
+| **Phase 4** | **Gemini-Powered Codebase Q&A Engine (`/ask`)**                              | **Completed** |
+|   Phase 4   | **Hybrid Retrieval without Vector DB (AST + Endpoints + Models + Imports)**  | **Completed** |
+|   Phase 4   | **Authoritative Citation & Claim Validation Pipeline**                       | **Completed** |
+|   Phase 4   | **Distinction Between Verified Source Facts & Inferences**                   | **Completed** |
+|   Phase 4   | **Interactive Code Citation Viewer with Exact Line Highlighting**            | **Completed** |
+|   Phase 4   | **Feature-Grounded Suggested Questions Generator**                           | **Completed** |
+| **Phase 5** | **Interactive React Flow Graph Workspace (`@xyflow/react`)**                 | **Completed** |
+|   Phase 5   | **Module Dependency Graph with Entry Points & Cycle Detection**              | **Completed** |
+|   Phase 5   | **API Request Flow Graph (Route -> Controller -> Database)**                 | **Completed** |
+|   Phase 5   | **Function and Call Graph with AST Line Ranges**                             | **Completed** |
+|   Phase 5   | **Database Interaction Graph with CRUD Operation Mapping**                   | **Completed** |
+|   Phase 5   | **Bidirectional Deep-Linking to FileViewer & AiAssistantTab**                | **Completed** |
+| **Phase 6** | **AI-Powered Onboarding Guide Engine (`/onboarding`)**                       | **Completed** |
+|   Phase 6   | **Evidence Gathering (README, package.json scripts, .env templates)**        | **Completed** |
+|   Phase 6   | **Safe Setup Commands with Verification Badges & Warnings**                  | **Completed** |
+|   Phase 6   | **Environment Variable Checklist & Automatic Secret Redaction**              | **Completed** |
+|   Phase 6   | **Recommended Reading Order with File & Line Links**                         | **Completed** |
+|   Phase 6   | **End-to-End Request & Data Flow Tracing**                                   | **Completed** |
+|   Phase 6   | **Testing & Common Setup Troubleshooting Heuristics**                        | **Completed** |
+|   Phase 6   | **Guide Caching & Re-analysis Staleness Invalidation**                       | **Completed** |
+| **Phase 7** | **Final Integration, Quality Assurance & Hackathon Readiness**               | **Completed** |
+|   Phase 7   | **Self-Contained Automated Test Suite (105 Tests Across 5 Test Files)**      | **Completed** |
+|   Phase 7   | **Full Frontend Code Quality (ESLint 0 Errors, Vite Production Build Pass)** | **Completed** |
+|   Phase 7   | **Contextual Deep-Linking across Intelligence Tabs & Graphs**                | **Completed** |
+|   Phase 7   | **Hackathon Live Demonstration Guide (`docs/demo-guide.md`)**                | **Completed** |
+|   Phase 7   | **Security Auditing: Path Traversal, Zip Slip, SSRF & Secret Protection**    | **Completed** |

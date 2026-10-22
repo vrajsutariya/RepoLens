@@ -9,6 +9,7 @@ import {
   VscWarning,
   VscChevronDown,
   VscChevronUp,
+  VscTrash,
 } from 'react-icons/vsc';
 
 export default function Sidebar({
@@ -16,6 +17,7 @@ export default function Sidebar({
   activeRepoId = null,
   onSelectRepo,
   onNewIngestion,
+  onRequestDelete,
   backendStatus,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -83,49 +85,83 @@ export default function Sidebar({
                   {repositories.map((repo) => {
                     const isActive = repo._id === activeRepoId;
                     return (
-                      <motion.button
+                      <div
                         key={repo._id}
-                        type="button"
-                        whileHover={{ x: 2 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => onSelectRepo(repo._id)}
-                        className={`btn text-start p-2 rounded d-flex align-items-start gap-2 border-0 w-100 ${
-                          isActive ? 'bg-repolens-hover text-white' : 'text-repolens-secondary'
-                        }`}
-                        style={{
-                          backgroundColor: isActive ? 'var(--color-surface-hover)' : 'transparent',
-                          borderLeft: isActive
-                            ? '3px solid var(--color-primary)'
-                            : '3px solid transparent',
-                          borderRadius: 'var(--radius-sm)',
-                          transition: 'background-color var(--transition-fast)',
-                        }}
+                        className="position-relative d-flex align-items-center w-100"
                       >
-                        <VscRepo
-                          size={16}
+                        <motion.button
+                          type="button"
+                          whileHover={{ x: 2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => onSelectRepo(repo._id)}
+                          className={`btn text-start p-2 rounded d-flex align-items-start gap-2 border-0 w-100 ${
+                            isActive ? 'bg-repolens-hover text-white' : 'text-repolens-secondary'
+                          }`}
                           style={{
-                            color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                            marginTop: '2px',
-                            flexShrink: 0,
+                            backgroundColor: isActive ? 'var(--color-surface-hover)' : 'transparent',
+                            borderLeft: isActive
+                              ? '3px solid var(--color-primary)'
+                              : '3px solid transparent',
+                            borderRadius: 'var(--radius-sm)',
+                            paddingRight: '36px',
+                            transition: 'background-color var(--transition-fast)',
                           }}
-                        />
-                        <div className="overflow-hidden w-100">
-                          <div
-                            className="text-truncate fw-medium small"
-                            style={{ color: isActive ? '#ffffff' : 'inherit' }}
-                          >
-                            {repo.name}
+                        >
+                          <VscRepo
+                            size={16}
+                            style={{
+                              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                              marginTop: '2px',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div className="overflow-hidden w-100" style={{ paddingRight: '12px' }}>
+                            <div
+                              className="text-truncate fw-medium small"
+                              style={{ color: isActive ? '#ffffff' : 'inherit' }}
+                            >
+                              {repo.name}
+                            </div>
+                            <div
+                              className="d-flex align-items-center gap-2 text-repolens-secondary mt-1"
+                              style={{ fontSize: '0.7rem' }}
+                            >
+                              <span className="text-uppercase">{repo.sourceType}</span>
+                              <span>&middot;</span>
+                              <span>{repo.totalFiles || 0} files</span>
+                            </div>
                           </div>
-                          <div
-                            className="d-flex align-items-center gap-2 text-repolens-secondary mt-1"
-                            style={{ fontSize: '0.7rem' }}
+                        </motion.button>
+
+                        {onRequestDelete && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRequestDelete(repo);
+                            }}
+                            className="btn btn-sm text-repolens-secondary p-1 position-absolute end-0 me-2 border-0 d-flex align-items-center justify-content-center"
+                            style={{
+                              backgroundColor: 'transparent',
+                              opacity: 0.7,
+                              borderRadius: 'var(--radius-sm)',
+                              transition: 'opacity var(--transition-fast), color var(--transition-fast)',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#ef4444';
+                              e.currentTarget.style.opacity = '1';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = '';
+                              e.currentTarget.style.opacity = '0.7';
+                            }}
+                            title={`Delete repository "${repo.name}"`}
+                            aria-label={`Delete repository ${repo.name}`}
                           >
-                            <span className="text-uppercase">{repo.sourceType}</span>
-                            <span>&middot;</span>
-                            <span>{repo.totalFiles || 0} files</span>
-                          </div>
-                        </div>
-                      </motion.button>
+                            <VscTrash size={14} />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

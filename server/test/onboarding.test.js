@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import mongoose from 'mongoose';
 import connectDB from '../src/config/db.js';
+import { config } from '../src/config/env.js';
 import geminiService from '../src/services/gemini.service.js';
 import {
   gatherOnboardingEvidence,
@@ -258,18 +259,22 @@ export default User;
     );
 
     // -------------------------------------------------------------------------
-    // Test 5: Missing Gemini API key reports clean HTTP 503
+    // Test 5: Missing or unconfigured Gemini API key reports clean error
     // -------------------------------------------------------------------------
     geminiService.resetMockClient();
-    const noConfigRes = await fetch(`${API_BASE}/repositories/${repoId}/onboarding/generate`, {
-      method: 'POST',
-    });
-    const noConfigData = await noConfigRes.json();
-    assert(
-      !noConfigData.success &&
-        (noConfigRes.status === 503 || noConfigData.error?.code === 'GEMINI_NOT_CONFIGURED'),
-      'Test 5: Missing Gemini API key reports clean HTTP 503 configuration error'
-    );
+    const originalApiKey = config.geminiApiKey;
+    let missingConfigCaught = false;
+    try {
+      config.geminiApiKey = '';
+      await generateOnboardingGuide(repoId);
+    } catch (err) {
+      missingConfigCaught =
+        err.statusCode === 503 &&
+        (err.code === 'GEMINI_NOT_CONFIGURED' || err.message?.includes('GEMINI_API_KEY'));
+    } finally {
+      config.geminiApiKey = originalApiKey;
+    }
+    assert(missingConfigCaught, 'Test 5: Missing or invalid Gemini API key reports clean configuration error');
 
     // -------------------------------------------------------------------------
     // Test 6: Gemini timeout handling

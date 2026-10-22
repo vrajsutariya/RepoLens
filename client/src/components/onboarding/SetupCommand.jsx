@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 import { VscCopy, VscCheck, VscWarning, VscVerified, VscInfo } from 'react-icons/vsc';
 

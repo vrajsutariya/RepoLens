@@ -4,6 +4,38 @@ import AnalysisResult from '../../models/AnalysisResult.js';
 import geminiService from '../gemini.service.js';
 import { retrieveCodeEvidence } from './qaRetrieval.service.js';
 import { validateQAResult } from './qaValidator.js';
+import { matchFaqQuestion } from './faqKnowledgeBase.js';
+
+/**
+ * Builds a standardized FAQ fallback response.
+ */
+const buildFaqResponse = (faqMatch, reason = 'Predefined FAQ answer provided.') => {
+  return {
+    answer: faqMatch.answer,
+    summary: faqMatch.summary || faqMatch.question,
+    claims: [
+      {
+        text: faqMatch.summary || faqMatch.answer.slice(0, 140),
+        type: 'architectural_inference',
+        evidenceIds: [],
+      },
+    ],
+    evidence: [],
+    inferences: [
+      reason,
+      'This answer is based on RepoLens system architecture and official features.',
+    ],
+    limitations: [
+      'This response is retrieved from the Predefined FAQ Knowledge Base, not dynamically generated from repository code snippets.',
+    ],
+    suggestedFiles: [],
+    isFaqFallback: true,
+    source: 'faq_fallback',
+    faqId: faqMatch.id,
+    faqQuestion: faqMatch.question,
+    faqCategory: faqMatch.category,
+  };
+};
 
 /**
  * Builds the strict grounding system instruction for Gemini.
@@ -108,15 +140,43 @@ export const answerCodebaseQuestion = async (repositoryId, question) => {
 
   const extractedDir = getRepoExtractedDir(repository.storageKey);
 
-  // 3. Retrieve relevant code evidence using hybrid retrieval engine
+  // 3. Fallback Priority 1 & 2: If Gemini is not configured, check for predefined FAQ answers
+  if (!geminiService.isConfigured()) {
+    const { matched, suggestedFaqs } = matchFaqQuestion(question);
+    if (matched) {
+      return buildFaqResponse(
+        matched,
+        'Predefined FAQ answer provided because Gemini API is not configured in this environment.'
+      );
+    }
+
+    const error = new Error(
+      'Gemini API key is not configured. Please set GEMINI_API_KEY in your server environment.'
+    );
+    error.statusCode = 503;
+    error.code = 'GEMINI_NOT_CONFIGURED';
+    error.suggestedFaqs = suggestedFaqs;
+    throw error;
+  }
+
+  // 4. Retrieve relevant code evidence using hybrid retrieval engine
   const { evidence, hasSufficientEvidence } = await retrieveCodeEvidence(
     repository,
     analysis,
     question
   );
 
-  // 4. Guard against zero or totally unrelated evidence
+  // 5. Guard against zero or totally unrelated evidence
   if (!hasSufficientEvidence && evidence.length === 0) {
+    // Check if user is asking a general system/architecture FAQ
+    const faqCheck = matchFaqQuestion(question);
+    if (faqCheck.matched && faqCheck.confidence >= 0.7) {
+      return buildFaqResponse(
+        faqCheck.matched,
+        'Predefined FAQ answer provided for platform / architectural question.'
+      );
+    }
+
     return {
       answer: `No relevant code, symbol, endpoint, or configuration evidence related to "${question}" could be found in repository "${repository.name}".`,
       summary: 'Insufficient repository evidence found to answer the query.',
@@ -141,17 +201,33 @@ export const answerCodebaseQuestion = async (repositoryId, question) => {
     };
   }
 
-  // 5. Construct Grounded Prompt & System Instruction
+  // 6. Construct Grounded Prompt & System Instruction
   const systemInstruction = buildSystemInstruction();
   const prompt = buildQAPrompt(repository, analysis, question, evidence);
 
-  // 6. Invoke Gemini through geminiService
-  const { data: rawGeminiData } = await geminiService.generateStructuredAnswer({
-    prompt,
-    systemInstruction,
-  });
+  // 7. Invoke Gemini through geminiService with graceful FAQ fallback on failure
+  let rawGeminiData;
+  try {
+    const geminiRes = await geminiService.generateStructuredAnswer({
+      prompt,
+      systemInstruction,
+    });
+    rawGeminiData = geminiRes.data;
+  } catch (geminiError) {
+    // If Gemini fails (401, 429, 503, 504), check if question matches predefined FAQ
+    const { matched, suggestedFaqs } = matchFaqQuestion(question);
+    if (matched) {
+      return buildFaqResponse(
+        matched,
+        `Predefined FAQ answer provided because Gemini AI is temporarily unavailable (${geminiError.message || 'Service Interruption'}).`
+      );
+    }
 
-  // 7. Validate citations, claims, file paths, and line numbers authoritatively
+    geminiError.suggestedFaqs = suggestedFaqs;
+    throw geminiError;
+  }
+
+  // 8. Validate citations, claims, file paths, and line numbers authoritatively
   const validatedResult = await validateQAResult(
     rawGeminiData,
     evidence,

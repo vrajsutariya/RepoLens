@@ -53,6 +53,10 @@ export const getRepositoryById = async (id) => {
   return await api.get(`/repositories/${id}`);
 };
 
+export const deleteRepository = async (id) => {
+  return await api.delete(`/repositories/${id}`);
+};
+
 export const getRepositoryTree = async (id) => {
   return await api.get(`/repositories/${id}/tree`);
 };
@@ -101,8 +105,8 @@ export const getRepositoryAiContext = async (id) => {
 /**
  * Gemini Codebase Q&A APIs (Phase 4)
  */
-export const askRepositoryQuestion = async (id, question) => {
-  return await api.post(`/repositories/${id}/ask`, { question });
+export const askRepositoryQuestion = async (id, question, options = {}) => {
+  return await api.post(`/repositories/${id}/ask`, { question }, options);
 };
 
 export const getRepositorySuggestedQuestions = async (id) => {
@@ -131,6 +135,13 @@ export const generateRepositoryOnboarding = async (id) => {
 
 export const regenerateRepositoryOnboarding = async (id) => {
   return await api.post(`/repositories/${id}/onboarding/regenerate`);
+};
+
+/**
+ * Predefined FAQ Knowledge Base (Fallback & System Help)
+ */
+export const getFaqEntries = async () => {
+  return await api.get('/repositories/faq');
 };
 
 export default api;
