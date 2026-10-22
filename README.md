@@ -164,7 +164,7 @@ PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb://127.0.0.1:27017/repolens
-GEMINI_API_KEY=AQ.Ab8RN6Jxw_D2u-Gcsm7EIWL77FKtd48T4VzofmkmXZJxgnwBww
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash
 ```
 
